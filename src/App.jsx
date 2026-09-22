@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { 
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
-  Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon
+  Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon, Upload
 } from 'lucide-react';
 
 const PUZZLE_14_INITIAL = [
@@ -30,8 +30,8 @@ const INITIAL_QUESTIONS = [
     id: "q_word_1",
     type: "word",
     question: "GUESS THE WORD: Combine both pictures to form a compound word!",
-    image1: "https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=400&q=80", // Eyes
-    image2: "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?auto=format&fit=crop&w=400&q=80", // Handsaw
+    image1: "https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=400&q=80",
+    image2: "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?auto=format&fit=crop&w=400&q=80",
     acceptedAnswers: ["seesaw", "see saw", "see-saw"],
     timeLimit: 25,
     explanation: "Picture 1 = SEE (Eyes) + Picture 2 = SAW (Hand tool) -> SEESAW!"
@@ -210,11 +210,11 @@ export default function App() {
   const [typedAnswer, setTypedAnswer] = useState("");
   const [tapCoords, setTapCoords] = useState(null);
 
-  // Participant Matchstick interactive state
+  // Participant Matchstick state
   const [userSticks, setUserSticks] = useState(PUZZLE_14_INITIAL);
   const [stickInventory, setStickInventory] = useState(0);
 
-  // Sync with Firebase
+  // Firebase Realtime DB listeners
   useEffect(() => {
     if (!roomId) return;
 
@@ -251,7 +251,7 @@ export default function App() {
     };
   }, [roomId]);
 
-  // Admin countdown
+  // Admin live timer
   useEffect(() => {
     if (!isAdminAuthed || game.status !== 'QUESTION') return;
 
@@ -288,7 +288,48 @@ export default function App() {
     }
   }, [game.currentIndex, game.status]);
 
-  // Admin Handlers
+  // Handle direct file uploads and compress to lightweight Base64
+  const handleFileUpload = (e, targetField) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 500;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height *= MAX_DIM / width;
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width *= MAX_DIM / height;
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        if (targetField === 'image1') setQImage1(dataUrl);
+        else if (targetField === 'image2') setQImage2(dataUrl);
+        else setQImageUrl(dataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Host operations
   const handleAdminLogin = (e) => {
     e.preventDefault();
     if (adminPass === "admin123") {
@@ -358,7 +399,6 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/answers`), {});
   };
 
-  // Form Reset / Populate
   const resetForm = () => {
     setEditingQId(null);
     setQType("word");
@@ -674,7 +714,6 @@ export default function App() {
   const participantList = Object.values(participants);
   const currentAnswerCount = Object.keys(answers).length;
 
-  // View: Landing
   if (!role) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6">
@@ -706,7 +745,6 @@ export default function App() {
     );
   }
 
-  // View: Participant Phone
   if (role === 'participant') {
     if (!hasJoined) {
       return (
@@ -786,7 +824,7 @@ export default function App() {
 
             <h3 className="text-base font-bold mb-3 leading-snug">{currQ.question}</h3>
 
-            {/* GUESS THE WORD: DUAL PICTURE DISPLAY */}
+            {/* DUAL PICTURE CLUES */}
             {currQ.type === 'word' && (
               <div className="mb-4">
                 {currQ.image1 && currQ.image2 ? (
@@ -807,7 +845,7 @@ export default function App() {
               </div>
             )}
 
-            {/* GUESS THE WORD: TEXT ENTRY BOX */}
+            {/* WORD TYPING BOX */}
             {currQ.type === 'word' && (
               <div className="space-y-4 my-2">
                 {game.status === 'QUESTION' && selectedAnswer === null && (
@@ -982,7 +1020,7 @@ export default function App() {
     );
   }
 
-  // View: Admin Login
+  // Admin login view
   if (!isAdminAuthed) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -1012,7 +1050,6 @@ export default function App() {
 
   const currentJoinUrl = window.location.origin;
 
-  // View: Host Admin Dashboard
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between">
@@ -1042,7 +1079,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* QUESTION BANK BUILDER */}
+      {/* QUESTION BUILDER WITH LOCAL FILE UPLOAD BUTTONS */}
       {adminTab === "builder" && (
         <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
@@ -1101,41 +1138,61 @@ export default function App() {
                 />
               </div>
 
-              {/* DUAL IMAGE INPUTS FOR GUESS THE WORD */}
+              {/* DUAL IMAGE UPLOAD & URL CONTROLS */}
               {qType === 'word' && (
                 <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
                   <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
-                    <ImageIcon className="w-4 h-4 text-indigo-400" /> Two Clue Pictures (Side-by-Side):
+                    <ImageIcon className="w-4 h-4 text-indigo-400" /> Two Clue Pictures (Upload from Device or Paste URL):
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Image 1 URL (e.g. Eyes / See):</label>
+                    {/* Clue 1 Upload */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] text-slate-300 font-semibold">Image 1 (e.g. Eyes / See):</label>
+                      <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
+                        <Upload className="w-3.5 h-3.5" /> Upload File 1
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, 'image1')}
+                          className="hidden"
+                        />
+                      </label>
                       <input
                         type="url"
-                        placeholder="https://..."
+                        placeholder="Or paste URL here..."
                         value={qImage1}
                         onChange={(e) => setQImage1(e.target.value)}
-                        className="w-full bg-slate-850 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:outline-none text-xs"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white placeholder-slate-600 text-[11px]"
                       />
                       {qImage1 && (
-                        <div className="mt-1.5 h-16 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
+                        <div className="mt-1 h-20 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
                           <img src={qImage1} alt="Preview 1" className="h-full object-contain" />
                         </div>
                       )}
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Image 2 URL (e.g. Saw):</label>
+                    {/* Clue 2 Upload */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] text-slate-300 font-semibold">Image 2 (e.g. Saw):</label>
+                      <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
+                        <Upload className="w-3.5 h-3.5" /> Upload File 2
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, 'image2')}
+                          className="hidden"
+                        />
+                      </label>
                       <input
                         type="url"
-                        placeholder="https://..."
+                        placeholder="Or paste URL here..."
                         value={qImage2}
                         onChange={(e) => setQImage2(e.target.value)}
-                        className="w-full bg-slate-850 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:outline-none text-xs"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white placeholder-slate-600 text-[11px]"
                       />
                       {qImage2 && (
-                        <div className="mt-1.5 h-16 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
+                        <div className="mt-1 h-20 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
                           <img src={qImage2} alt="Preview 2" className="h-full object-contain" />
                         </div>
                       )}
@@ -1144,7 +1201,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* ACCEPTED ANSWERS FOR GUESS THE WORD */}
+              {/* ACCEPTED ANSWERS */}
               {qType === 'word' && (
                 <div className="p-3 bg-indigo-950/20 border border-indigo-500/30 rounded-xl space-y-1">
                   <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
@@ -1159,12 +1216,12 @@ export default function App() {
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none text-xs font-mono"
                   />
                   <p className="text-[10px] text-slate-500">
-                    Matches are case-insensitive and ignore spaces or hyphens automatically.
+                    Matches are case-insensitive and ignore punctuation/spacing.
                   </p>
                 </div>
               )}
 
-              {/* TRUE / FALSE SELECTION */}
+              {/* TRUE / FALSE */}
               {qType === 'boolean' && (
                 <div className="space-y-2">
                   <label className="block text-slate-400 font-semibold">Mark Correct Answer</label>
@@ -1187,7 +1244,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* MCQ CHOICES WITH MARK BUTTON */}
+              {/* MCQ CHOICES */}
               {qType === 'mcq' && (
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
@@ -1249,7 +1306,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* MATCHSTICK PUZZLE PREVIEW IN BUILDER */}
+              {/* MATCHSTICK GRID */}
               {qType === 'matchstick' && (
                 <div className="p-3 bg-slate-850 rounded-xl border border-slate-800 space-y-2">
                   <div className="flex justify-between items-center">
@@ -1277,7 +1334,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* REASON / EXPLANATION FIELD */}
+              {/* REASON / EXPLANATION */}
               <div className="p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-xl space-y-1">
                 <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
                   <Info className="w-3.5 h-3.5" /> Explanation for Participants:
@@ -1291,17 +1348,31 @@ export default function App() {
                 />
               </div>
 
-              {/* SINGLE IMAGE URL FOR NON-WORD QUESTIONS */}
+              {/* NON-WORD SINGLE IMAGE */}
               {qType !== 'word' && (
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional)</label>
+                <div className="space-y-1.5">
+                  <label className="block text-slate-400 font-semibold">Image (Upload from Device or Paste URL):</label>
+                  <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
+                    <Upload className="w-3.5 h-3.5" /> Upload Image File
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, 'single')}
+                      className="hidden"
+                    />
+                  </label>
                   <input
                     type="url"
-                    placeholder="https://..."
+                    placeholder="Or paste URL here..."
                     value={qImageUrl}
                     onChange={(e) => setQImageUrl(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white placeholder-slate-600 text-xs"
                   />
+                  {qImageUrl && (
+                    <div className="h-20 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
+                      <img src={qImageUrl} alt="Preview" className="h-full object-contain" />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1365,7 +1436,7 @@ export default function App() {
 
                     <p className="font-semibold text-sm leading-snug">{q.question}</p>
 
-                    {/* Clue Thumbnails */}
+                    {/* Word Question Clues Display */}
                     {q.type === 'word' && (
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
