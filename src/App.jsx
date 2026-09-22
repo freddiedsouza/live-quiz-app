@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { 
   Users, Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
-  Trash2, Edit3, Layers, Check, X, Image as ImageIcon
+  Trash2, Edit3, Layers, Check, X, Info
 } from 'lucide-react';
 
 const INITIAL_QUESTIONS = [
@@ -16,7 +16,8 @@ const INITIAL_QUESTIONS = [
     question: "Which planet in our solar system has the most moons?",
     options: ["Jupiter", "Saturn", "Uranus", "Neptune"],
     correctIndex: 1,
-    timeLimit: 20
+    timeLimit: 20,
+    explanation: "Saturn has 146 confirmed moons, overtaking Jupiter's 95 moons."
   },
   {
     id: "q_2",
@@ -24,7 +25,8 @@ const INITIAL_QUESTIONS = [
     question: "Sound travels faster in water than in air.",
     options: ["True", "False"],
     correctIndex: 0,
-    timeLimit: 15
+    timeLimit: 15,
+    explanation: "True! Water particles are packed much more densely than air molecules, allowing sound vibrations to transmit roughly 4.3 times faster."
   },
   {
     id: "q_3",
@@ -34,7 +36,8 @@ const INITIAL_QUESTIONS = [
     target: { xMin: 40, xMax: 60, yMin: 40, yMax: 60 },
     options: ["Visual Target"],
     correctIndex: 0,
-    timeLimit: 30
+    timeLimit: 30,
+    explanation: "The Queen Bee is situated right in the center with a longer thorax and distinct amber abdomen."
   },
   {
     id: "q_4",
@@ -42,7 +45,8 @@ const INITIAL_QUESTIONS = [
     question: "Matchstick Puzzle: Move 1 stick to fix 6 + 4 = 4. What is the correct equation?",
     options: ["0 + 4 = 4", "5 + 4 = 9", "8 - 4 = 4", "6 - 4 = 2"],
     correctIndex: 0,
-    timeLimit: 25
+    timeLimit: 25,
+    explanation: "By taking the middle vertical stick from '6', it transforms into a '0', making 0 + 4 = 4 valid."
   }
 ];
 
@@ -58,13 +62,14 @@ export default function App() {
 
   // Question Form Builder state
   const [editingQId, setEditingQId] = useState(null);
-  const [qType, setQType] = useState("mcq");
+  const [qType, setQType] = useState("boolean");
   const [qText, setQText] = useState("");
-  const [qOptions, setQOptions] = useState(["", "", "", ""]);
+  const [qOptions, setQOptions] = useState(["True", "False"]);
   const [qCorrectIndex, setQCorrectIndex] = useState(0);
   const [qTimeLimit, setQTimeLimit] = useState(20);
   const [qImageUrl, setQImageUrl] = useState("");
   const [qTargetCoords, setQTargetCoords] = useState("30,30,70,70");
+  const [qExplanation, setQExplanation] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
 
   // Room / Game state
@@ -227,23 +232,25 @@ export default function App() {
   // Question Form Management
   const resetForm = () => {
     setEditingQId(null);
-    setQType("mcq");
+    setQType("boolean");
     setQText("");
-    setQOptions(["", "", "", ""]);
+    setQOptions(["True", "False"]);
     setQCorrectIndex(0);
     setQTimeLimit(20);
     setQImageUrl("");
     setQTargetCoords("30,30,70,70");
+    setQExplanation("");
   };
 
   const handleEdit = (q) => {
     setEditingQId(q.id);
     setQType(q.type || "mcq");
     setQText(q.question || "");
-    setQOptions(q.options && q.options.length ? [...q.options] : ["", "", "", ""]);
+    setQOptions(q.options && q.options.length ? [...q.options] : ["True", "False"]);
     setQCorrectIndex(q.correctIndex || 0);
     setQTimeLimit(q.timeLimit || 20);
     setQImageUrl(q.imageUrl || "");
+    setQExplanation(q.explanation || "");
     if (q.target) {
       setQTargetCoords(`${q.target.xMin},${q.target.yMin},${q.target.xMax},${q.target.yMax}`);
     } else {
@@ -271,6 +278,16 @@ export default function App() {
       if (qCorrectIndex >= updated.length) {
         setQCorrectIndex(0);
       }
+    }
+  };
+
+  const handleTypeSwitch = (type) => {
+    setQType(type);
+    if (type === 'boolean') {
+      setQOptions(["True", "False"]);
+      if (qCorrectIndex > 1) setQCorrectIndex(0);
+    } else if (type === 'mcq' && qOptions.length < 4) {
+      setQOptions(["", "", "", ""]);
     }
   };
 
@@ -314,6 +331,7 @@ export default function App() {
       correctIndex: Number(qCorrectIndex),
       timeLimit: Number(qTimeLimit) || 20,
       imageUrl: qImageUrl.trim() || null,
+      explanation: qExplanation.trim() || null,
       target: parsedTarget
     };
 
@@ -441,7 +459,7 @@ export default function App() {
     );
   }
 
-  // View: Participant Portal (Mobile)
+  // View: Participant Portal (Mobile phone)
   if (role === 'participant') {
     if (!hasJoined) {
       return (
@@ -510,80 +528,95 @@ export default function App() {
 
     if (game.status === 'QUESTION' || game.status === 'REVEAL') {
       return (
-        <div className="min-h-screen bg-slate-950 text-white flex flex-col p-4 pb-8">
-          <div className="flex items-center justify-between py-2 border-b border-slate-800 mb-4">
-            <span className="text-xs font-semibold text-slate-400">Q {game.currentIndex + 1} of {questions.length}</span>
-            <div className={`px-3 py-1 rounded-full font-bold text-sm ${game.timeRemaining <= 5 ? 'bg-red-500/20 text-red-400 animate-bounce' : 'bg-slate-800 text-slate-200'}`}>
-              ⏱ {game.timeRemaining}s
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col p-4 pb-8 justify-between">
+          <div>
+            <div className="flex items-center justify-between py-2 border-b border-slate-800 mb-4">
+              <span className="text-xs font-semibold text-slate-400">Q {game.currentIndex + 1} of {questions.length}</span>
+              <div className={`px-3 py-1 rounded-full font-bold text-sm ${game.timeRemaining <= 5 ? 'bg-red-500/20 text-red-400 animate-bounce' : 'bg-slate-800 text-slate-200'}`}>
+                ⏱ {game.timeRemaining}s
+              </div>
             </div>
+
+            <h3 className="text-lg font-bold mb-4 leading-snug">{currQ.question}</h3>
+
+            {currQ.type === 'diagram' && currQ.imageUrl && (
+              <div className="relative mb-4 rounded-xl overflow-hidden border border-slate-800">
+                <img
+                  src={currQ.imageUrl}
+                  alt="Find the target"
+                  onClick={(e) => {
+                    if (selectedAnswer !== null || game.status !== 'QUESTION') return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = ((e.clientX - rect.left) / rect.width) * 100;
+                    const y = ((e.clientY - rect.top) / rect.height) * 100;
+                    submitAnswer(999, { x, y });
+                  }}
+                  className="w-full h-auto cursor-crosshair select-none"
+                />
+                {tapCoords && (
+                  <div 
+                    className="absolute w-6 h-6 border-2 border-indigo-400 bg-indigo-500/40 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-ping"
+                    style={{ left: `${tapCoords.x}%`, top: `${tapCoords.y}%` }}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Answer Options Buttons */}
+            {currQ.type !== 'diagram' && (
+              <div className={`grid gap-3 my-auto ${currQ.type === 'boolean' ? 'grid-cols-2 mt-4' : 'grid-cols-1'}`}>
+                {currQ.options.map((opt, idx) => {
+                  let btnStyle = "bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-850";
+
+                  if (selectedAnswer === idx) {
+                    btnStyle = "bg-indigo-600 border-indigo-500 text-white ring-2 ring-indigo-400";
+                  }
+
+                  if (game.status === 'REVEAL') {
+                    if (idx === currQ.correctIndex) {
+                      btnStyle = "bg-emerald-600 border-emerald-500 text-white font-bold";
+                    } else if (selectedAnswer === idx) {
+                      btnStyle = "bg-rose-600 border-rose-500 text-white";
+                    } else {
+                      btnStyle = "bg-slate-900/40 border-slate-900 text-slate-600";
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={idx}
+                      disabled={selectedAnswer !== null || game.status !== 'QUESTION'}
+                      onClick={() => submitAnswer(idx)}
+                      className={`w-full py-4 px-5 rounded-2xl border text-left font-semibold text-base transition flex items-center justify-between ${btnStyle}`}
+                    >
+                      <span>{opt}</span>
+                      {game.status === 'REVEAL' && idx === currQ.correctIndex && (
+                        <CheckCircle2 className="w-5 h-5 text-white" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          <h3 className="text-lg font-bold mb-4 leading-snug">{currQ.question}</h3>
+          {/* Reveal & Reason box on Mobile */}
+          <div>
+            {game.status === 'REVEAL' && currQ.explanation && (
+              <div className="mt-4 p-4 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
+                <div className="flex items-center gap-2 text-indigo-300 font-bold text-xs uppercase tracking-wider mb-1">
+                  <Info className="w-4 h-4 text-indigo-400" /> Explanation / Reason:
+                </div>
+                <p className="text-slate-200 text-sm leading-relaxed">{currQ.explanation}</p>
+              </div>
+            )}
 
-          {currQ.type === 'diagram' && currQ.imageUrl && (
-            <div className="relative mb-4 rounded-xl overflow-hidden border border-slate-800">
-              <img
-                src={currQ.imageUrl}
-                alt="Find the target"
-                onClick={(e) => {
-                  if (selectedAnswer !== null || game.status !== 'QUESTION') return;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = ((e.clientX - rect.left) / rect.width) * 100;
-                  const y = ((e.clientY - rect.top) / rect.height) * 100;
-                  submitAnswer(999, { x, y });
-                }}
-                className="w-full h-auto cursor-crosshair select-none"
-              />
-              {tapCoords && (
-                <div 
-                  className="absolute w-6 h-6 border-2 border-indigo-400 bg-indigo-500/40 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-ping"
-                  style={{ left: `${tapCoords.x}%`, top: `${tapCoords.y}%` }}
-                />
-              )}
-            </div>
-          )}
-
-          {currQ.type !== 'diagram' && (
-            <div className="grid grid-cols-1 gap-3 my-auto">
-              {currQ.options.map((opt, idx) => {
-                let btnStyle = "bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-850";
-
-                if (selectedAnswer === idx) {
-                  btnStyle = "bg-indigo-600 border-indigo-500 text-white ring-2 ring-indigo-400";
-                }
-
-                if (game.status === 'REVEAL') {
-                  if (idx === currQ.correctIndex) {
-                    btnStyle = "bg-emerald-600 border-emerald-500 text-white font-bold";
-                  } else if (selectedAnswer === idx) {
-                    btnStyle = "bg-rose-600 border-rose-500 text-white";
-                  } else {
-                    btnStyle = "bg-slate-900/40 border-slate-900 text-slate-600";
-                  }
-                }
-
-                return (
-                  <button
-                    key={idx}
-                    disabled={selectedAnswer !== null || game.status !== 'QUESTION'}
-                    onClick={() => submitAnswer(idx)}
-                    className={`w-full py-4 px-5 rounded-2xl border text-left font-semibold text-base transition flex items-center justify-between ${btnStyle}`}
-                  >
-                    <span>{opt}</span>
-                    {game.status === 'REVEAL' && idx === currQ.correctIndex && (
-                      <CheckCircle2 className="w-5 h-5 text-white" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {selectedAnswer !== null && game.status === 'QUESTION' && (
-            <p className="text-center text-sm text-emerald-400 mt-4 animate-fade-in">
-              ✓ Answer submitted! Waiting for time to expire...
-            </p>
-          )}
+            {selectedAnswer !== null && game.status === 'QUESTION' && (
+              <p className="text-center text-sm text-emerald-400 mt-4 animate-fade-in">
+                ✓ Answer submitted! Waiting for time to expire...
+              </p>
+            )}
+          </div>
         </div>
       );
     }
@@ -695,14 +728,14 @@ export default function App() {
                 <label className="block text-slate-400 font-semibold mb-1">Format</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'mcq', label: 'Multiple Choice' },
                     { id: 'boolean', label: 'True / False' },
+                    { id: 'mcq', label: 'Multiple Choice' },
                     { id: 'diagram', label: 'Spot On Diagram' }
                   ].map(tab => (
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => setQType(tab.id)}
+                      onClick={() => handleTypeSwitch(tab.id)}
                       className={`py-2 rounded-xl border font-bold text-center transition ${qType === tab.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-850 border-slate-750 text-slate-400 hover:text-white'}`}
                     >
                       {tab.label}
@@ -716,34 +749,55 @@ export default function App() {
                 <textarea
                   required
                   rows={2}
-                  placeholder="e.g. Which country won the 2022 World Cup?"
+                  placeholder={qType === 'boolean' ? "e.g. Lightning never strikes the same place twice." : "Enter your question here..."}
                   value={qText}
                   onChange={(e) => setQText(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional for MCQ / Required for Diagram)</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={qImageUrl}
-                  onChange={(e) => setQImageUrl(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none"
-                />
-                {qImageUrl && (
-                  <div className="mt-2 p-1 bg-black rounded-lg border border-slate-800 flex justify-center">
-                    <img src={qImageUrl} alt="Preview" className="h-24 object-contain" />
+              {/* Boolean True / False Selection */}
+              {qType === 'boolean' && (
+                <div className="space-y-2">
+                  <label className="block text-slate-400 font-semibold">Mark Correct Answer</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setQCorrectIndex(0)}
+                      className={`py-3.5 rounded-xl border font-bold text-sm transition flex items-center justify-center gap-2 ${qCorrectIndex === 0 ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30' : 'bg-slate-850 border-slate-750 text-slate-400 hover:text-white'}`}
+                    >
+                      {qCorrectIndex === 0 && <Check className="w-4 h-4" />} True is Correct
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQCorrectIndex(1)}
+                      className={`py-3.5 rounded-xl border font-bold text-sm transition flex items-center justify-center gap-2 ${qCorrectIndex === 1 ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30' : 'bg-slate-850 border-slate-750 text-slate-400 hover:text-white'}`}
+                    >
+                      {qCorrectIndex === 1 && <Check className="w-4 h-4" />} False is Correct
+                    </button>
                   </div>
-                )}
+                </div>
+              )}
+
+              {/* Explanation / Reason field */}
+              <div className="p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-xl space-y-1">
+                <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5" /> Reason / Explanation for Participants:
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain why it is True or False (shown to participants when answer is revealed)"
+                  value={qExplanation}
+                  onChange={(e) => setQExplanation(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
+                />
               </div>
 
-              {/* MCQ Options with clear click-to-mark correct answer */}
+              {/* MCQ Options */}
               {qType === 'mcq' && (
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <label className="block text-slate-400 font-semibold">Options (Click green button to mark correct)</label>
+                    <label className="block text-slate-400 font-semibold">Options (Click Mark to choose correct)</label>
                     {qOptions.length < 6 && (
                       <button 
                         type="button" 
@@ -790,7 +844,6 @@ export default function App() {
                               type="button"
                               onClick={() => removeOptionField(i)}
                               className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg"
-                              title="Delete option"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -802,30 +855,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Boolean True / False Selection */}
-              {qType === 'boolean' && (
-                <div className="space-y-2">
-                  <label className="block text-slate-400 font-semibold">Correct Answer</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setQCorrectIndex(0)}
-                      className={`py-3 rounded-xl border font-bold text-sm transition flex items-center justify-center gap-2 ${qCorrectIndex === 0 ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30' : 'bg-slate-850 border-slate-750 text-slate-400'}`}
-                    >
-                      {qCorrectIndex === 0 && <Check className="w-4 h-4" />} True
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQCorrectIndex(1)}
-                      className={`py-3 rounded-xl border font-bold text-sm transition flex items-center justify-center gap-2 ${qCorrectIndex === 1 ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30' : 'bg-slate-850 border-slate-750 text-slate-400'}`}
-                    >
-                      {qCorrectIndex === 1 && <Check className="w-4 h-4" />} False
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Diagram target coords */}
+              {/* Diagram Target Box */}
               {qType === 'diagram' && (
                 <div className="bg-slate-850 p-3 rounded-xl border border-slate-800 space-y-1">
                   <label className="block text-indigo-300 font-semibold">Target Box (xMin, yMin, xMax, yMax in %)</label>
@@ -835,9 +865,20 @@ export default function App() {
                     onChange={(e) => setQTargetCoords(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white"
                   />
-                  <p className="text-[10px] text-slate-500">Default "30,30,70,70" detects clicks within the middle 40% area.</p>
                 </div>
               )}
+
+              {/* Optional Image */}
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional)</label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={qImageUrl}
+                  onChange={(e) => setQImageUrl(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none"
+                />
+              </div>
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Time Limit (Seconds)</label>
@@ -899,8 +940,13 @@ export default function App() {
 
                     <p className="font-semibold text-sm leading-snug">{q.question}</p>
 
-                    {q.imageUrl && (
-                      <img src={q.imageUrl} alt="preview" className="h-16 w-28 object-cover rounded-lg border border-slate-800" />
+                    {q.type === 'boolean' && (
+                      <div className="flex items-center gap-2 pt-1 text-xs">
+                        <span className="text-slate-400">Answer:</span>
+                        <span className="px-2.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold">
+                          {q.correctIndex === 0 ? "True" : "False"}
+                        </span>
+                      </div>
                     )}
 
                     {q.type === 'mcq' && (
@@ -915,6 +961,13 @@ export default function App() {
                             {oIdx === q.correctIndex && <Check className="w-3 h-3 text-emerald-400 ml-auto flex-shrink-0" />}
                           </span>
                         ))}
+                      </div>
+                    )}
+
+                    {q.explanation && (
+                      <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                        <span className="line-clamp-2"><b className="text-slate-300">Reason:</b> {q.explanation}</span>
                       </div>
                     )}
                   </div>
@@ -1000,6 +1053,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Projector Screen */}
           <div className="flex-1 p-6 flex flex-col justify-center items-center bg-slate-950 overflow-y-auto">
             {game.status === 'LOBBY' && (
               <div className="max-w-xl w-full text-center space-y-5 my-auto">
@@ -1057,7 +1111,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className={`grid gap-3 pt-2 ${currQ.type === 'boolean' ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
                   {currQ.options.map((opt, i) => {
                     let cardStyle = "bg-slate-900 border-slate-800 text-slate-300";
                     if (game.status === 'REVEAL') {
@@ -1075,6 +1129,16 @@ export default function App() {
                     );
                   })}
                 </div>
+
+                {/* Explanation Card on Reveal (Projector) */}
+                {game.status === 'REVEAL' && currQ.explanation && (
+                  <div className="p-5 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
+                    <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm uppercase tracking-wider mb-1">
+                      <Info className="w-4 h-4 text-indigo-400" /> Explanation / Reason:
+                    </div>
+                    <p className="text-slate-200 text-base leading-relaxed">{currQ.explanation}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1089,14 +1153,14 @@ export default function App() {
                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
                   {getLeaderboard().slice(0, 5).map((entry, idx) => (
                     <div key={idx} className="flex items-center justify-between bg-slate-900 p-4 rounded-2xl border border-slate-800">
-                  <div className="flex items-center gap-4">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-black' : idx === 1 ? 'bg-slate-300 text-black' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                      {idx + 1}
-                    </span>
-                    <span className="font-bold text-lg">{entry.name}</span>
-                  </div>
-                  <span className="text-indigo-400 font-extrabold text-xl">{entry.score || 0} pts</span>
-                </div>
+                      <div className="flex items-center gap-4">
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-black' : idx === 1 ? 'bg-slate-300 text-black' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                          {idx + 1}
+                        </span>
+                        <span className="font-bold text-lg">{entry.name}</span>
+                      </div>
+                      <span className="text-indigo-400 font-extrabold text-xl">{entry.score || 0} pts</span>
+                    </div>
                   ))}
                 </div>
               </div>
