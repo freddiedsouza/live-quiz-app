@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { 
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
-  Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type
+  Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon
 } from 'lucide-react';
 
 const PUZZLE_14_INITIAL = [
@@ -29,11 +29,12 @@ const INITIAL_QUESTIONS = [
   {
     id: "q_word_1",
     type: "word",
-    question: "GUESS THE WORD: Look at the visual clues (👀 + 🪚) and type the word!",
-    imageUrl: "https://i.ibb.co/vzjKj5T/seesaw-clue.png", // or custom image
+    question: "GUESS THE WORD: Combine both pictures to form a compound word!",
+    image1: "https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=400&q=80", // Eyes
+    image2: "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?auto=format&fit=crop&w=400&q=80", // Handsaw
     acceptedAnswers: ["seesaw", "see saw", "see-saw"],
     timeLimit: 25,
-    explanation: "Two eyes represent 'SEE' and the tool represents 'SAW' = SEESAW!"
+    explanation: "Picture 1 = SEE (Eyes) + Picture 2 = SAW (Hand tool) -> SEESAW!"
   },
   {
     id: "q_match_1",
@@ -180,6 +181,8 @@ export default function App() {
   const [qCorrectIndex, setQCorrectIndex] = useState(0);
   const [qTimeLimit, setQTimeLimit] = useState(25);
   const [qImageUrl, setQImageUrl] = useState("");
+  const [qImage1, setQImage1] = useState("");
+  const [qImage2, setQImage2] = useState("");
   const [qTargetCoords, setQTargetCoords] = useState("30,30,70,70");
   const [qExplanation, setQExplanation] = useState("");
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState("seesaw, see saw");
@@ -248,7 +251,7 @@ export default function App() {
     };
   }, [roomId]);
 
-  // Admin live countdown timer
+  // Admin countdown
   useEffect(() => {
     if (!isAdminAuthed || game.status !== 'QUESTION') return;
 
@@ -285,7 +288,7 @@ export default function App() {
     }
   }, [game.currentIndex, game.status]);
 
-  // Admin Actions
+  // Admin Handlers
   const handleAdminLogin = (e) => {
     e.preventDefault();
     if (adminPass === "admin123") {
@@ -355,7 +358,7 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/answers`), {});
   };
 
-  // Question Management Form Handlers
+  // Form Reset / Populate
   const resetForm = () => {
     setEditingQId(null);
     setQType("word");
@@ -364,6 +367,8 @@ export default function App() {
     setQCorrectIndex(0);
     setQTimeLimit(25);
     setQImageUrl("");
+    setQImage1("");
+    setQImage2("");
     setQTargetCoords("30,30,70,70");
     setQExplanation("");
     setQAcceptedAnswers("");
@@ -379,6 +384,8 @@ export default function App() {
     setQCorrectIndex(q.correctIndex || 0);
     setQTimeLimit(q.timeLimit || 20);
     setQImageUrl(q.imageUrl || "");
+    setQImage1(q.image1 || "");
+    setQImage2(q.image2 || "");
     setQExplanation(q.explanation || "");
     if (q.type === 'word') {
       setQAcceptedAnswers(Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : "");
@@ -485,6 +492,8 @@ export default function App() {
       correctIndex: Number(qCorrectIndex),
       timeLimit: Number(qTimeLimit) || 20,
       imageUrl: qImageUrl.trim() || null,
+      image1: qType === 'word' ? (qImage1.trim() || null) : null,
+      image2: qType === 'word' ? (qImage2.trim() || null) : null,
       explanation: qExplanation.trim() || null,
       acceptedAnswers: qType === 'word' ? accepted : null,
       target: parsedTarget,
@@ -518,7 +527,7 @@ export default function App() {
     }
   };
 
-  // Participant Matchstick Actions
+  // Matchstick Interaction
   const handleStickToggle = (slotId) => {
     if (selectedAnswer !== null || game.status !== 'QUESTION') return;
     const isCurrentlyActive = userSticks.includes(slotId);
@@ -566,7 +575,7 @@ export default function App() {
     }
   };
 
-  // Submit Typed Word Riddle
+  // Participant Typing Submission
   const submitWordAnswer = (e) => {
     e.preventDefault();
     if (!typedAnswer.trim() || selectedAnswer !== null || game.status !== 'QUESTION') return;
@@ -665,7 +674,7 @@ export default function App() {
   const participantList = Object.values(participants);
   const currentAnswerCount = Object.keys(answers).length;
 
-  // View: Landing Screen
+  // View: Landing
   if (!role) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6">
@@ -675,7 +684,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight">Live Interactive Quiz</h1>
-            <p className="text-slate-400 mt-2">Trivia, Word Riddles, Matchsticks & Visuals</p>
+            <p className="text-slate-400 mt-2">Word Riddles, Matchsticks, Trivia & Visual Challenges</p>
           </div>
 
           <div className="space-y-4 pt-4">
@@ -697,7 +706,7 @@ export default function App() {
     );
   }
 
-  // View: Participant Mobile Screen
+  // View: Participant Phone
   if (role === 'participant') {
     if (!hasJoined) {
       return (
@@ -777,10 +786,24 @@ export default function App() {
 
             <h3 className="text-base font-bold mb-3 leading-snug">{currQ.question}</h3>
 
-            {/* GUESS THE WORD: IMAGE DISPLAY */}
-            {currQ.type === 'word' && currQ.imageUrl && (
-              <div className="mb-4 rounded-2xl overflow-hidden border border-slate-800 flex justify-center bg-black">
-                <img src={currQ.imageUrl} alt="Clue" className="max-h-48 object-contain" />
+            {/* GUESS THE WORD: DUAL PICTURE DISPLAY */}
+            {currQ.type === 'word' && (
+              <div className="mb-4">
+                {currQ.image1 && currQ.image2 ? (
+                  <div className="flex items-center justify-center gap-2 bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
+                    <div className="flex-1 bg-white p-2 rounded-xl flex items-center justify-center aspect-square max-h-36 overflow-hidden">
+                      <img src={currQ.image1} alt="Clue 1" className="max-h-full object-contain" />
+                    </div>
+                    <span className="text-2xl font-black text-indigo-400">+</span>
+                    <div className="flex-1 bg-white p-2 rounded-xl flex items-center justify-center aspect-square max-h-36 overflow-hidden">
+                      <img src={currQ.image2} alt="Clue 2" className="max-h-full object-contain" />
+                    </div>
+                  </div>
+                ) : currQ.imageUrl ? (
+                  <div className="rounded-2xl overflow-hidden border border-slate-800 flex justify-center bg-black">
+                    <img src={currQ.imageUrl} alt="Clue" className="max-h-48 object-contain" />
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -1019,10 +1042,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* QUESTION BANK BUILDER (2-COLUMN: FORM + LIST) */}
+      {/* QUESTION BANK BUILDER */}
       {adminTab === "builder" && (
         <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Creator Form */}
           <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold flex items-center gap-2 text-white">
@@ -1072,14 +1094,57 @@ export default function App() {
                 <textarea
                   required
                   rows={2}
-                  placeholder={qType === 'word' ? "e.g. Look at the two pictures and guess the compound word!" : "Enter question prompt..."}
+                  placeholder={qType === 'word' ? "e.g. Combine the two pictures to guess the compound word!" : "Enter question prompt..."}
                   value={qText}
                   onChange={(e) => setQText(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
 
-              {/* GUESS THE WORD: ACCEPTED WORDS INPUT */}
+              {/* DUAL IMAGE INPUTS FOR GUESS THE WORD */}
+              {qType === 'word' && (
+                <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
+                  <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
+                    <ImageIcon className="w-4 h-4 text-indigo-400" /> Two Clue Pictures (Side-by-Side):
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Image 1 URL (e.g. Eyes / See):</label>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={qImage1}
+                        onChange={(e) => setQImage1(e.target.value)}
+                        className="w-full bg-slate-850 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:outline-none text-xs"
+                      />
+                      {qImage1 && (
+                        <div className="mt-1.5 h-16 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
+                          <img src={qImage1} alt="Preview 1" className="h-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Image 2 URL (e.g. Saw):</label>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={qImage2}
+                        onChange={(e) => setQImage2(e.target.value)}
+                        className="w-full bg-slate-850 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:outline-none text-xs"
+                      />
+                      {qImage2 && (
+                        <div className="mt-1.5 h-16 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
+                          <img src={qImage2} alt="Preview 2" className="h-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ACCEPTED ANSWERS FOR GUESS THE WORD */}
               {qType === 'word' && (
                 <div className="p-3 bg-indigo-950/20 border border-indigo-500/30 rounded-xl space-y-1">
                   <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
@@ -1226,22 +1291,19 @@ export default function App() {
                 />
               </div>
 
-              {/* IMAGE URL */}
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Image URL (Clue Picture)</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={qImageUrl}
-                  onChange={(e) => setQImageUrl(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none"
-                />
-                {qImageUrl && (
-                  <div className="mt-2 p-1 bg-black rounded-lg border border-slate-800 flex justify-center">
-                    <img src={qImageUrl} alt="Preview" className="h-24 object-contain" />
-                  </div>
-                )}
-              </div>
+              {/* SINGLE IMAGE URL FOR NON-WORD QUESTIONS */}
+              {qType !== 'word' && (
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional)</label>
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={qImageUrl}
+                    onChange={(e) => setQImageUrl(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Time Limit (Seconds)</label>
@@ -1303,14 +1365,26 @@ export default function App() {
 
                     <p className="font-semibold text-sm leading-snug">{q.question}</p>
 
+                    {/* Clue Thumbnails */}
                     {q.type === 'word' && (
-                      <div className="text-xs text-indigo-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800">
-                        <b>Accepted:</b> {Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : ""}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          {q.image1 && (
+                            <div className="h-14 w-14 bg-white rounded-lg p-1 border border-slate-700 flex items-center justify-center">
+                              <img src={q.image1} alt="1" className="max-h-full object-contain" />
+                            </div>
+                          )}
+                          {q.image1 && q.image2 && <span className="text-indigo-400 font-bold text-sm">+</span>}
+                          {q.image2 && (
+                            <div className="h-14 w-14 bg-white rounded-lg p-1 border border-slate-700 flex items-center justify-center">
+                              <img src={q.image2} alt="2" className="max-h-full object-contain" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-indigo-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+                          <b>Accepted:</b> {Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : ""}
+                        </div>
                       </div>
-                    )}
-
-                    {q.imageUrl && (
-                      <img src={q.imageUrl} alt="Clue" className="h-16 w-28 object-contain rounded-lg border border-slate-800 bg-black" />
                     )}
 
                     {q.type === 'matchstick' && (
@@ -1488,10 +1562,24 @@ export default function App() {
 
                 <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ.question}</h2>
 
-                {/* Guess the Word Projector View */}
-                {currQ.type === 'word' && currQ.imageUrl && (
-                  <div className="max-h-80 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
-                    <img src={currQ.imageUrl} alt="Clue" className="max-h-80 object-contain" />
+                {/* Projector: Dual Pictures for Guess the Word */}
+                {currQ.type === 'word' && (
+                  <div className="flex justify-center items-center gap-4 my-4">
+                    {currQ.image1 && currQ.image2 ? (
+                      <>
+                        <div className="bg-white p-4 rounded-3xl shadow-xl flex items-center justify-center max-h-56 aspect-square overflow-hidden border border-slate-700">
+                          <img src={currQ.image1} alt="Clue 1" className="max-h-full object-contain" />
+                        </div>
+                        <span className="text-4xl font-black text-indigo-400">+</span>
+                        <div className="bg-white p-4 rounded-3xl shadow-xl flex items-center justify-center max-h-56 aspect-square overflow-hidden border border-slate-700">
+                          <img src={currQ.image2} alt="Clue 2" className="max-h-full object-contain" />
+                        </div>
+                      </>
+                    ) : currQ.imageUrl ? (
+                      <div className="max-h-80 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
+                        <img src={currQ.imageUrl} alt="Clue" className="max-h-80 object-contain" />
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
