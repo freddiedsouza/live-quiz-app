@@ -589,7 +589,6 @@ export default function App() {
 
       if (counter > 30) {
         clearInterval(interval);
-        // Final decisive winner
         const chosen = participantList[Math.floor(Math.random() * participantList.length)];
         setAnimatedName(chosen.name);
         setIsSpinning(false);
@@ -1896,6 +1895,7 @@ export default function App() {
 
                       <p className={`font-semibold text-sm leading-snug ${isEnabled ? 'text-slate-200' : 'text-slate-500'}`}>{q.question}</p>
 
+                      {/* Multi-Word Search summary */}
                       {q.type === 'wordsearch' && (
                         <div className="flex items-center gap-3">
                           {q.imageUrl && (
@@ -1916,6 +1916,7 @@ export default function App() {
                         </div>
                       )}
 
+                      {/* Word Question Clues */}
                       {q.type === 'word' && (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2">
@@ -2056,15 +2057,13 @@ export default function App() {
                   </button>
                 )}
 
-                {/* LUCKY DRAW BUTTON */}
-                {(game.status === 'FINAL' || game.status === 'LEADERBOARD') && (
-                  <button
-                    onClick={triggerLuckyDraw}
-                    className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98]"
-                  >
-                    <Gift className="w-5 h-5 fill-current" /> Run Lucky Draw ({participantList.length})
-                  </button>
-                )}
+                {/* Always-visible Lucky Draw Button */}
+                <button
+                  onClick={triggerLuckyDraw}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98]"
+                >
+                  <Gift className="w-5 h-5 fill-current" /> Run Lucky Draw ({participantList.length} Players)
+                </button>
 
                 <button
                   onClick={resetRoom}
@@ -2304,18 +2303,6 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-
-                {/* LUCKY DRAW BUTTON DIRECTLY ON FINAL SCREEN */}
-                {game.status === 'FINAL' && (
-                  <div className="pt-4 border-t border-slate-800">
-                    <button
-                      onClick={triggerLuckyDraw}
-                      className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-3 text-lg shadow-xl shadow-yellow-500/20 transition active:scale-[0.98]"
-                    >
-                      <Gift className="w-6 h-6 fill-current" /> Run Lucky Draw ({participantList.length} Connected Players)
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>
