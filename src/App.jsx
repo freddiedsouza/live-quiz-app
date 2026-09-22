@@ -506,6 +506,37 @@ export default function App() {
 
   // Host login operation
   const handleAdminLogin = (e) => {
+  e.preventDefault();
+  const entered = (adminPass || "").trim();
+  
+  if (entered === "admin123") {
+    setIsAdminAuthed(true);
+    // Initialize room in Firebase safely without blocking login if network lags
+    const roomRef = ref(db, `rooms/${roomId}`);
+    get(roomRef)
+      .then((snap) => {
+        if (!snap.exists()) {
+          set(roomRef, {
+            game: {
+              status: 'LOBBY',
+              mode: 'INDIVIDUAL',
+              currentIndex: 0,
+              timeRemaining: 25,
+              questionStartTime: Date.now()
+            },
+            questions: INITIAL_QUESTIONS,
+            participants: {},
+            answers: {}
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Room check warning:", err);
+      });
+  } else {
+    alert("Incorrect passcode entered: " + entered);
+  }
+};
     e.preventDefault();
     if (adminPass === "admin123") {
       setIsAdminAuthed(true);
@@ -1385,12 +1416,15 @@ export default function App() {
           </div>
           <p className="text-xs text-slate-400">Enter host passcode to continue</p>
           <input
-            type="password"
-            placeholder="Enter passcode"
-            value={adminPass}
-            onChange={(e) => setAdminPass(e.target.value)}
-            className="w-full bg-slate-850 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+  type="password"
+  id="admin-passcode"
+  name="adminPasscode"
+  autoComplete="current-password"
+  placeholder="Enter passcode"
+  value={adminPass}
+  onChange={(e) => setAdminPass(e.target.value)}
+  className="w-full bg-slate-850 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+/>
           <button
             type="submit"
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl transition"
