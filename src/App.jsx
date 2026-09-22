@@ -152,9 +152,8 @@ export default function App() {
   // Admin Operations
   const handleAdminLogin = (e) => {
     e.preventDefault();
-    if (adminPass === "admin123") { // Default password, customizable
+    if (adminPass === "admin123") {
       setIsAdminAuthed(true);
-      // Initialize room data if empty
       const roomRef = ref(db, `rooms/${roomId}`);
       get(roomRef).then((snap) => {
         if (!snap.exists()) {
@@ -273,14 +272,12 @@ export default function App() {
 
     setSelectedAnswer(optionIdx);
 
-    // Save answer submission
     set(ref(db, `rooms/${roomId}/answers/${participantId}`), {
       answer: optionIdx,
       isCorrect,
       timeRemaining: game.timeRemaining
     });
 
-    // If correct, calculate score with speed bonus
     if (isCorrect) {
       const addedPoints = 100 + (game.timeRemaining * 10);
       const currentScore = participants[participantId]?.score || 0;
@@ -290,7 +287,6 @@ export default function App() {
     }
   };
 
-  // Compute Leaderboard standings (Individual or Team aggregated)
   const getLeaderboard = () => {
     const list = Object.values(participants || {});
     if (game.mode === 'TEAM') {
@@ -310,7 +306,7 @@ export default function App() {
   const participantList = Object.values(participants);
   const currentAnswerCount = Object.keys(answers).length;
 
-  // View Routing: Landing Screen
+  // View: Landing Screen
   if (!role) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6">
@@ -342,7 +338,7 @@ export default function App() {
     );
   }
 
-  // View: Participant Portal (Mobile phone view)
+  // View: Participant Portal (Mobile phone)
   if (role === 'participant') {
     if (!hasJoined) {
       return (
@@ -393,7 +389,6 @@ export default function App() {
       );
     }
 
-    // Participant In Lobby Waiting
     if (game.status === 'LOBBY') {
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center">
@@ -410,7 +405,6 @@ export default function App() {
       );
     }
 
-    // Participant Question & Answer Pad
     if (game.status === 'QUESTION' || game.status === 'REVEAL') {
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col p-4 pb-8">
@@ -423,7 +417,6 @@ export default function App() {
 
           <h3 className="text-lg font-bold mb-4 leading-snug">{currQ.question}</h3>
 
-          {/* Diagram / Spot question interactive container */}
           {currQ.type === 'diagram' && currQ.imageUrl && (
             <div className="relative mb-4 rounded-xl overflow-hidden border border-slate-800">
               <img
@@ -447,7 +440,6 @@ export default function App() {
             </div>
           )}
 
-          {/* MCQ / Options list */}
           {currQ.type !== 'diagram' && (
             <div className="grid grid-cols-1 gap-3 my-auto">
               {currQ.options.map((opt, idx) => {
@@ -493,7 +485,6 @@ export default function App() {
       );
     }
 
-    // Participant Leaderboard / Final podium
     return (
       <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col justify-center text-center">
         <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
@@ -537,7 +528,7 @@ export default function App() {
     );
   }
 
-  // View: Full Admin Command Center & Projector Display
+  // View: Admin Command Center & Projector Display
   const currentJoinUrl = window.location.origin;
 
   return (
@@ -696,38 +687,50 @@ export default function App() {
         </details>
       </div>
 
-      {/* Main Projector Screen (Shows to audience on TV/Projector) */}
-      <div className="flex-1 p-8 flex flex-col justify-between items-center bg-radial from-slate-900 to-slate-950">
+      {/* Main Projector Screen */}
+      <div className="flex-1 p-6 flex flex-col justify-center items-center bg-slate-950 overflow-y-auto">
         {game.status === 'LOBBY' && (
-          <div className="max-w-xl w-full text-center my-auto space-y-8">
-            <h1 className="text-5xl font-black tracking-tight">Join the Live Quiz!</h1>
+          <div className="max-w-xl w-full text-center space-y-5 my-auto">
+            <h1 className="text-4xl md:text-5xl font-black tracking-tight">Join the Live Quiz!</h1>
             
-            <div className="inline-block p-6 bg-white rounded-3xl shadow-2xl">
-              <QRCodeSVG value={currentJoinUrl} size={220} />
+            <div className="inline-block p-4 bg-white rounded-3xl shadow-2xl">
+              <QRCodeSVG value={currentJoinUrl} size={180} />
             </div>
 
-            <div className="space-y-2">
-              <p className="text-slate-400 text-lg">Scan the QR code or visit on your phone:</p>
-              <p className="text-2xl font-mono font-bold text-indigo-400 bg-slate-900/80 py-2 px-6 rounded-2xl inline-block border border-slate-800">
+            <div>
+              <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Scan QR or visit on your mobile:</p>
+              <p className="text-lg md:text-xl font-mono font-bold text-indigo-400 bg-slate-900 py-1.5 px-5 rounded-xl inline-block border border-slate-800 shadow-inner">
                 {currentJoinUrl}
               </p>
             </div>
 
-            <div className="pt-4">
-              <span className="text-xs uppercase text-slate-500 font-bold tracking-widest">Connected Participants</span>
-              <div className="flex flex-wrap gap-2 justify-center mt-3 max-h-36 overflow-y-auto">
-                {participantList.map((p, i) => (
-                  <span key={i} className="bg-slate-800 border border-slate-700 text-slate-300 text-sm px-3 py-1 rounded-full animate-fade-in">
-                    {p.name} {p.team ? `(${p.team})` : ''}
-                  </span>
-                ))}
+            {/* Prominent live participants list */}
+            <div className="pt-4 border-t border-slate-850 w-full">
+              <div className="text-xs uppercase text-slate-400 font-bold tracking-wider mb-3">
+                Connected Participants ({participantList.length})
               </div>
+              
+              {participantList.length === 0 ? (
+                <p className="text-slate-600 text-sm italic">Waiting for players to join...</p>
+              ) : (
+                <div className="flex flex-wrap gap-2.5 justify-center max-h-44 overflow-y-auto px-2">
+                  {participantList.map((p, i) => (
+                    <span 
+                      key={i} 
+                      className="bg-indigo-950/60 border border-indigo-500/30 text-indigo-200 text-sm font-semibold px-3.5 py-1.5 rounded-xl shadow-sm flex items-center gap-2 animate-fade-in"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      {p.name || 'Anonymous'} {p.team ? `[${p.team}]` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {(game.status === 'QUESTION' || game.status === 'REVEAL') && (
-          <div className="max-w-3xl w-full my-auto space-y-8">
+          <div className="max-w-3xl w-full my-auto space-y-6">
             <div className="flex justify-between items-center border-b border-slate-800 pb-4">
               <span className="text-lg font-bold text-indigo-400">Question {game.currentIndex + 1} of {questions.length}</span>
               <div className="flex items-center gap-2 text-3xl font-black text-amber-400">
@@ -735,28 +738,28 @@ export default function App() {
               </div>
             </div>
 
-            <h2 className="text-3xl font-extrabold leading-snug">{currQ.question}</h2>
+            <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ.question}</h2>
 
             {currQ.type === 'diagram' && currQ.imageUrl && (
-              <div className="max-h-96 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
-                <img src={currQ.imageUrl} alt="Diagram" className="max-h-96 object-contain" />
+              <div className="max-h-80 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
+                <img src={currQ.imageUrl} alt="Diagram" className="max-h-80 object-contain" />
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               {currQ.options.map((opt, i) => {
                 let cardStyle = "bg-slate-900 border-slate-800 text-slate-300";
                 if (game.status === 'REVEAL') {
                   if (i === currQ.correctIndex) {
-                    cardStyle = "bg-emerald-600/20 border-emerald-500 text-emerald-300 font-black scale-105";
+                    cardStyle = "bg-emerald-600/20 border-emerald-500 text-emerald-300 font-black scale-[1.02]";
                   } else {
                     cardStyle = "bg-slate-900/40 border-slate-900 text-slate-600";
                   }
                 }
                 return (
-                  <div key={i} className={`p-6 rounded-2xl border text-xl font-bold flex items-center justify-between transition-all ${cardStyle}`}>
+                  <div key={i} className={`p-4 rounded-xl border text-lg font-bold flex items-center justify-between transition-all ${cardStyle}`}>
                     <span>{opt}</span>
-                    {game.status === 'REVEAL' && i === currQ.correctIndex && <CheckCircle2 className="w-6 h-6 text-emerald-400" />}
+                    {game.status === 'REVEAL' && i === currQ.correctIndex && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
                   </div>
                 );
               })}
@@ -772,7 +775,7 @@ export default function App() {
               <p className="text-slate-400 text-sm">Sorted by total points scored</p>
             </div>
 
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
               {getLeaderboard().slice(0, 5).map((entry, idx) => (
                 <div key={idx} className="flex items-center justify-between bg-slate-900 p-4 rounded-2xl border border-slate-800">
                   <div className="flex items-center gap-4">
@@ -787,10 +790,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        <div className="w-full text-center text-xs text-slate-500 pt-6 border-t border-slate-900">
-          Powered by Firebase Realtime Sync • Host Console
-        </div>
       </div>
     </div>
   );
