@@ -7,7 +7,7 @@ import {
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
   Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon, Upload,
-  ArrowUp, ArrowDown, EyeOff, Search, Gift, Dices
+  ArrowUp, ArrowDown, EyeOff, Search, Gift, Dices, SpellCheck
 } from 'lucide-react';
 
 const PUZZLE_14_INITIAL = [
@@ -26,7 +26,28 @@ const PUZZLE_14_SOLUTION = [
   "H_2_0", "H_2_1"
 ];
 
+// Helper to shuffle letters
+function shuffleWord(word) {
+  const arr = word.toUpperCase().split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  const scrambled = arr.join('');
+  return scrambled === word.toUpperCase() && arr.length > 2 ? shuffleWord(word) : scrambled;
+}
+
 const INITIAL_QUESTIONS = [
+  {
+    id: "q_jumble_1",
+    type: "jumble",
+    enabled: true,
+    question: "UNSCRAMBLE: Tap the letters in the correct order to spell the mystery word!",
+    targetWord: "PLANET",
+    scrambledLetters: "TNAPEL",
+    timeLimit: 30,
+    explanation: "The unscrambled word is PLANET (a celestial body orbiting a star)!"
+  },
   {
     id: "q_search_multi_1",
     type: "wordsearch",
@@ -322,16 +343,20 @@ export default function App() {
 
   // Form Builder state
   const [editingQId, setEditingQId] = useState(null);
-  const [qType, setQType] = useState("wordsearch");
+  const [qType, setQType] = useState("jumble");
   const [qText, setQText] = useState("");
   const [qOptions, setQOptions] = useState(["True", "False"]);
   const [qCorrectIndex, setQCorrectIndex] = useState(0);
-  const [qTimeLimit, setQTimeLimit] = useState(40);
+  const [qTimeLimit, setQTimeLimit] = useState(30);
   const [qImageUrl, setQImageUrl] = useState("");
   const [qImage1, setQImage1] = useState("");
   const [qImage2, setQImage2] = useState("");
   const [qExplanation, setQExplanation] = useState("");
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState("seesaw, see saw");
+
+  // Jumble Builder state
+  const [qJumbleTarget, setQJumbleTarget] = useState("PLANET");
+  const [qJumbleScrambled, setQJumbleScrambled] = useState("TNAPEL");
   
   // Word Search Multi-word state
   const [qTargetWords, setQTargetWords] = useState([
@@ -376,6 +401,10 @@ export default function App() {
   const [foundWordIds, setFoundWordIds] = useState([]);
   const [persistedLines, setPersistedLines] = useState([]);
   const [participantDraftLine, setParticipantDraftLine] = useState(null);
+
+  // Participant Jumble state
+  const [jumbleBank, setJumbleBank] = useState([]);
+  const [jumbleSlots, setJumbleSlots] = useState([]);
 
   const activeQuestions = questions.filter(q => q.enabled !== false);
   const participantList = Object.values(participants);
@@ -449,6 +478,7 @@ export default function App() {
     }
   }, [game.status, luckyWinner]);
 
+  // Reset round state on question change
   useEffect(() => {
     setSelectedAnswer(null);
     setTypedAnswer("");
@@ -460,6 +490,11 @@ export default function App() {
     if (curr && curr.type === 'matchstick') {
       setUserSticks(curr.initialSticks || PUZZLE_14_INITIAL);
       setStickInventory(0);
+    }
+    if (curr && curr.type === 'jumble') {
+      const letters = (curr.scrambledLetters || curr.targetWord || "").toUpperCase().split('');
+      setJumbleBank(letters.map((char, i) => ({ id: `tile_${i}`, char, used: false })));
+      setJumbleSlots([]);
     }
   }, [game.currentIndex, game.status, questions]);
 
@@ -506,59 +541,34 @@ export default function App() {
 
   // Host login operation
   const handleAdminLogin = (e) => {
-  e.preventDefault();
-  const entered = (adminPass || "").trim();
-  
-  if (entered === "admin123") {
-    setIsAdminAuthed(true);
-    // Initialize room in Firebase safely without blocking login if network lags
-    const roomRef = ref(db, `rooms/${roomId}`);
-    get(roomRef)
-      .then((snap) => {
-        if (!snap.exists()) {
-          set(roomRef, {
-            game: {
-              status: 'LOBBY',
-              mode: 'INDIVIDUAL',
-              currentIndex: 0,
-              timeRemaining: 25,
-              questionStartTime: Date.now()
-            },
-            questions: INITIAL_QUESTIONS,
-            participants: {},
-            answers: {}
-          });
-        }
-      })
-      .catch((err) => {
-        console.warn("Room check warning:", err);
-      });
-  } else {
-    alert("Incorrect passcode entered: " + entered);
-  }
-};
     e.preventDefault();
-    if (adminPass === "admin123") {
+    const entered = (adminPass || "").trim();
+
+    if (entered === "admin123") {
       setIsAdminAuthed(true);
       const roomRef = ref(db, `rooms/${roomId}`);
-      get(roomRef).then((snap) => {
-        if (!snap.exists()) {
-          set(roomRef, {
-            game: {
-              status: 'LOBBY',
-              mode: 'INDIVIDUAL',
-              currentIndex: 0,
-              timeRemaining: 25,
-              questionStartTime: Date.now()
-            },
-            questions: INITIAL_QUESTIONS,
-            participants: {},
-            answers: {}
-          });
-        }
-      });
+      get(roomRef)
+        .then((snap) => {
+          if (!snap.exists()) {
+            set(roomRef, {
+              game: {
+                status: 'LOBBY',
+                mode: 'INDIVIDUAL',
+                currentIndex: 0,
+                timeRemaining: 25,
+                questionStartTime: Date.now()
+              },
+              questions: INITIAL_QUESTIONS,
+              participants: {},
+              answers: {}
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn("Room check warning:", err);
+        });
     } else {
-      alert("Incorrect passcode.");
+      alert("Incorrect passcode entered.");
     }
   };
 
@@ -571,7 +581,7 @@ export default function App() {
     update(ref(db, `rooms/${roomId}/game`), {
       status: 'QUESTION',
       currentIndex: 0,
-      timeRemaining: firstQ.timeLimit || 35,
+      timeRemaining: firstQ.timeLimit || 30,
       questionStartTime: Date.now()
     });
     set(ref(db, `rooms/${roomId}/answers`), {});
@@ -587,7 +597,7 @@ export default function App() {
       update(ref(db, `rooms/${roomId}/game`), {
         status: 'QUESTION',
         currentIndex: nextIdx,
-        timeRemaining: q.timeLimit || 35,
+        timeRemaining: q.timeLimit || 30,
         questionStartTime: Date.now()
       });
       set(ref(db, `rooms/${roomId}/answers`), {});
@@ -644,16 +654,18 @@ export default function App() {
 
   const resetForm = () => {
     setEditingQId(null);
-    setQType("wordsearch");
+    setQType("jumble");
     setQText("");
     setQOptions(["True", "False"]);
     setQCorrectIndex(0);
-    setQTimeLimit(40);
+    setQTimeLimit(30);
     setQImageUrl("");
     setQImage1("");
     setQImage2("");
     setQExplanation("");
     setQAcceptedAnswers("");
+    setQJumbleTarget("PLANET");
+    setQJumbleScrambled("TNAPEL");
     setQTargetWords([
       { id: "w_1", word: "SUN", highlight: { x1: 20, y1: 25, x2: 45, y2: 25 } }
     ]);
@@ -665,7 +677,7 @@ export default function App() {
 
   const handleEdit = (q) => {
     setEditingQId(q.id);
-    setQType(q.type || "wordsearch");
+    setQType(q.type || "jumble");
     setQText(q.question || "");
     setQOptions(q.options && q.options.length ? [...q.options] : ["True", "False"]);
     setQCorrectIndex(q.correctIndex || 0);
@@ -674,6 +686,10 @@ export default function App() {
     setQImage1(q.image1 || "");
     setQImage2(q.image2 || "");
     setQExplanation(q.explanation || "");
+    if (q.type === 'jumble') {
+      setQJumbleTarget(q.targetWord || "PLANET");
+      setQJumbleScrambled(q.scrambledLetters || shuffleWord(q.targetWord || "PLANET"));
+    }
     if (q.type === 'wordsearch') {
       setQTargetWords(q.targetWords || []);
       setActiveWordIndex(0);
@@ -738,10 +754,31 @@ export default function App() {
     setActiveWordIndex(Math.max(0, idx - 1));
   };
 
+  const handleTypeSwitch = (type) => {
+    setQType(type);
+    if (type === 'boolean') {
+      setQOptions(["True", "False"]);
+    } else if (type === 'jumble') {
+      setQTimeLimit(30);
+      if (!qText) setQText("UNSCRAMBLE: Tap the letters in the correct order to spell the mystery word!");
+    } else if (type === 'wordsearch') {
+      setQTimeLimit(45);
+    } else if (type === 'word') {
+      setQTimeLimit(25);
+    } else if (type === 'matchstick') {
+      setQTimeLimit(45);
+    }
+  };
+
   const handleSaveQuestion = (e) => {
     e.preventDefault();
     if (!qText.trim()) {
       setStatusMessage("Error: Question prompt cannot be empty.");
+      return;
+    }
+
+    if (qType === 'jumble' && !qJumbleTarget.trim()) {
+      setStatusMessage("Error: Please provide the target word for Jumble.");
       return;
     }
 
@@ -761,6 +798,8 @@ export default function App() {
 
     if (qType === 'boolean') {
       finalOptions = ["True", "False"];
+    } else if (qType === 'jumble') {
+      finalOptions = [qJumbleTarget.trim().toUpperCase()];
     } else if (qType === 'wordsearch') {
       finalOptions = qTargetWords.map(w => w.word);
     } else if (qType === 'matchstick') {
@@ -791,11 +830,13 @@ export default function App() {
       question: qText.trim(),
       options: finalOptions,
       correctIndex: Number(qCorrectIndex),
-      timeLimit: Number(qTimeLimit) || 35,
+      timeLimit: Number(qTimeLimit) || 30,
       imageUrl: qImageUrl.trim() || null,
       image1: qType === 'word' ? (qImage1.trim() || null) : null,
       image2: qType === 'word' ? (qImage2.trim() || null) : null,
       explanation: qExplanation.trim() || null,
+      targetWord: qType === 'jumble' ? qJumbleTarget.trim().toUpperCase() : null,
+      scrambledLetters: qType === 'jumble' ? (qJumbleScrambled.trim().toUpperCase() || shuffleWord(qJumbleTarget)) : null,
       targetWords: qType === 'wordsearch' ? qTargetWords : null,
       pointsPerWord: 100,
       acceptedAnswers: qType === 'word' ? accepted : null,
@@ -826,6 +867,50 @@ export default function App() {
       const updatedList = questions.filter(q => q.id !== id);
       setQuestions(updatedList);
       set(ref(db, `rooms/${roomId}/questions`), updatedList);
+    }
+  };
+
+  // Participant Jumble Interactions
+  const handlePickJumbleTile = (tile) => {
+    if (selectedAnswer !== null || game.status !== 'QUESTION' || tile.used) return;
+    setJumbleSlots(prev => [...prev, tile]);
+    setJumbleBank(prev => prev.map(t => t.id === tile.id ? { ...t, used: true } : t));
+  };
+
+  const handleReturnJumbleTile = (slotTile, index) => {
+    if (selectedAnswer !== null || game.status !== 'QUESTION') return;
+    setJumbleSlots(prev => prev.filter((_, i) => i !== index));
+    setJumbleBank(prev => prev.map(t => t.id === slotTile.id ? { ...t, used: false } : t));
+  };
+
+  const handleResetJumble = () => {
+    if (selectedAnswer !== null || game.status !== 'QUESTION') return;
+    setJumbleSlots([]);
+    setJumbleBank(prev => prev.map(t => ({ ...t, used: false })));
+  };
+
+  const submitJumbleWord = () => {
+    if (selectedAnswer !== null || game.status !== 'QUESTION' || jumbleSlots.length === 0) return;
+    const curr = activeQuestions[game.currentIndex];
+    const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
+    
+    const assembledWord = jumbleSlots.map(s => s.char).join('');
+    const isCorrect = assembledWord.toUpperCase() === (curr.targetWord || "").toUpperCase();
+
+    setSelectedAnswer(assembledWord);
+
+    set(ref(db, `rooms/${roomId}/answers/${participantId}`), {
+      answer: assembledWord,
+      isCorrect,
+      timeRemaining: game.timeRemaining
+    });
+
+    if (isCorrect) {
+      const addedPoints = 120 + (game.timeRemaining * 10);
+      const currentScore = participants[participantId]?.score || 0;
+      update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
+        score: currentScore + addedPoints
+      });
     }
   };
 
@@ -1019,7 +1104,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight">Live Interactive Quiz</h1>
-            <p className="text-slate-400 mt-2">Word Searches, Riddles, Matchsticks & Trivia</p>
+            <p className="text-slate-400 mt-2">Jumble Letters, Word Searches, Riddles & Puzzles</p>
           </div>
 
           <div className="space-y-4 pt-4">
@@ -1166,6 +1251,79 @@ export default function App() {
             </div>
 
             <h3 className="text-base font-bold mb-3 leading-snug">{currQ.question}</h3>
+
+            {/* JUMBLE LETTERS INTERACTIVE SCREEN */}
+            {currQ.type === 'jumble' && (
+              <div className="space-y-5 my-2">
+                {/* Empty Answer Slots on Top */}
+                <div className="space-y-1 text-center">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Your Assembled Word:</span>
+                  <div className="flex flex-wrap gap-2 justify-center min-h-[58px] p-2 bg-slate-900/90 rounded-2xl border-2 border-dashed border-slate-700">
+                    {jumbleSlots.length === 0 ? (
+                      <span className="text-xs text-slate-600 italic self-center">Tap letters below in order</span>
+                    ) : (
+                      jumbleSlots.map((slotTile, idx) => (
+                        <button
+                          key={`slot_${idx}`}
+                          disabled={selectedAnswer !== null || game.status !== 'QUESTION'}
+                          onClick={() => handleReturnJumbleTile(slotTile, idx)}
+                          className="w-12 h-12 rounded-xl bg-gradient-to-t from-indigo-700 to-indigo-500 text-white font-black text-xl flex items-center justify-center shadow-lg border border-indigo-300/40 active:scale-95 transition-transform"
+                        >
+                          {slotTile.char}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Scrambled Letter Tiles at Bottom */}
+                {selectedAnswer === null && game.status === 'QUESTION' && (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs text-slate-400 px-1">
+                      <span>Available Letters:</span>
+                      <button
+                        onClick={handleResetJumble}
+                        className="text-indigo-400 hover:text-white flex items-center gap-1 text-[11px] bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Clear Word
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {jumbleBank.map((tile) => (
+                        <button
+                          key={tile.id}
+                          disabled={tile.used}
+                          onClick={() => handlePickJumbleTile(tile)}
+                          className={`w-12 h-12 rounded-xl font-black text-xl flex items-center justify-center shadow transition-all ${
+                            tile.used
+                              ? 'bg-slate-900 border border-slate-850 text-slate-700 scale-90 opacity-30 cursor-not-allowed'
+                              : 'bg-slate-800 hover:bg-slate-750 border border-slate-600 text-amber-300 hover:scale-105 active:scale-95'
+                          }`}
+                        >
+                          {tile.char}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={submitJumbleWord}
+                      disabled={jumbleSlots.length === 0}
+                      className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 font-black rounded-2xl text-base text-white shadow-lg shadow-emerald-600/30 transition active:scale-[0.98] mt-4"
+                    >
+                      Submit Word
+                    </button>
+                  </div>
+                )}
+
+                {selectedAnswer !== null && (
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center space-y-1 animate-fade-in">
+                    <span className="text-xs text-slate-400 uppercase">You Submitted:</span>
+                    <p className="text-3xl font-black text-indigo-400 tracking-wider">{selectedAnswer}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* MULTI-WORD SEARCH PUZZLE INTERACTION */}
             {currQ.type === 'wordsearch' && currQ.imageUrl && (
@@ -1363,6 +1521,12 @@ export default function App() {
           <div>
             {game.status === 'REVEAL' && (
               <div className="mt-4 p-4 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
+                {currQ.type === 'jumble' && (
+                  <div className="mb-2">
+                    <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Unscrambled Word:</span>
+                    <p className="text-2xl font-black text-white uppercase tracking-wider">{currQ.targetWord}</p>
+                  </div>
+                )}
                 {currQ.type === 'wordsearch' && (
                   <div className="mb-2">
                     <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">All Hidden Words:</span>
@@ -1405,7 +1569,7 @@ export default function App() {
     );
   }
 
-  // Host access login screen (hint removed)
+  // Host access login screen
   if (!isAdminAuthed) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -1416,15 +1580,15 @@ export default function App() {
           </div>
           <p className="text-xs text-slate-400">Enter host passcode to continue</p>
           <input
-  type="password"
-  id="admin-passcode"
-  name="adminPasscode"
-  autoComplete="current-password"
-  placeholder="Enter passcode"
-  value={adminPass}
-  onChange={(e) => setAdminPass(e.target.value)}
-  className="w-full bg-slate-850 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-/>
+            type="password"
+            id="admin-passcode"
+            name="adminPasscode"
+            autoComplete="current-password"
+            placeholder="Enter passcode"
+            value={adminPass}
+            onChange={(e) => setAdminPass(e.target.value)}
+            className="w-full bg-slate-850 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
           <button
             type="submit"
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl transition"
@@ -1467,7 +1631,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* QUESTION BUILDER WITH MULTI-WORD SEARCH */}
+      {/* QUESTION BUILDER */}
       {adminTab === "builder" && (
         <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
@@ -1495,12 +1659,13 @@ export default function App() {
             <form onSubmit={handleSaveQuestion} className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Format</label>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                   {[
+                    { id: 'jumble', label: 'Jumble' },
                     { id: 'wordsearch', label: 'Word Search' },
                     { id: 'word', label: 'Guess Word' },
-                    { id: 'boolean', label: 'True / False' },
-                    { id: 'mcq', label: 'Multiple Choice' },
+                    { id: 'boolean', label: 'True/False' },
+                    { id: 'mcq', label: 'MCQ' },
                     { id: 'matchstick', label: 'Matchstick' }
                   ].map(tab => (
                     <button
@@ -1520,12 +1685,58 @@ export default function App() {
                 <textarea
                   required
                   rows={2}
-                  placeholder={qType === 'wordsearch' ? "e.g. Find all the hidden space words in the puzzle!" : "Enter question prompt..."}
+                  placeholder="Enter question prompt..."
                   value={qText}
                   onChange={(e) => setQText(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
+
+              {/* JUMBLE WORD BUILDER */}
+              {qType === 'jumble' && (
+                <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
+                  <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
+                    <SpellCheck className="w-4 h-4 text-indigo-400" /> Jumble Letters Configuration:
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">Target Mystery Word (The Solution):</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g. GALAXY"
+                      value={qJumbleTarget}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setQJumbleTarget(val);
+                        setQJumbleScrambled(shuffleWord(val));
+                      }}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white font-mono uppercase tracking-widest text-sm font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-[11px] text-slate-300 font-semibold">Scrambled Letters (Given to players):</label>
+                      <button
+                        type="button"
+                        onClick={() => setQJumbleScrambled(shuffleWord(qJumbleTarget))}
+                        className="text-xs text-indigo-400 hover:text-white flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Re-shuffle
+                      </button>
+                    </div>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g. XAYGLA"
+                      value={qJumbleScrambled}
+                      onChange={(e) => setQJumbleScrambled(e.target.value.toUpperCase())}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-amber-300 font-mono uppercase tracking-widest text-sm font-bold"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* MULTI-WORD SEARCH BUILDER */}
               {qType === 'wordsearch' && (
@@ -1779,16 +1990,6 @@ export default function App() {
                             {isCorrect ? <Check className="w-3.5 h-3.5" /> : null}
                             {isCorrect ? 'Correct' : 'Mark'}
                           </button>
-
-                          {qOptions.length > 2 && (
-                            <button
-                              type="button"
-                              onClick={() => removeOptionField(i)}
-                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
                         </div>
                       );
                     })}
@@ -1830,7 +2031,7 @@ export default function App() {
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Explain the clue / solution (shown on Reveal)..."
+                  placeholder="Explain the solution (shown on Reveal)..."
                   value={qExplanation}
                   onChange={(e) => setQExplanation(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
@@ -1928,6 +2129,14 @@ export default function App() {
                       </div>
 
                       <p className={`font-semibold text-sm leading-snug ${isEnabled ? 'text-slate-200' : 'text-slate-500'}`}>{q.question}</p>
+
+                      {/* Jumble Summary */}
+                      {q.type === 'jumble' && (
+                        <div className="flex items-center gap-3 bg-slate-950/60 p-2 rounded-xl border border-slate-800 text-xs">
+                          <span className="text-amber-400 font-mono tracking-widest font-bold">Scrambled: {q.scrambledLetters}</span>
+                          <span className="text-emerald-400 font-mono tracking-widest font-bold">Word: {q.targetWord}</span>
+                        </div>
+                      )}
 
                       {/* Multi-Word Search summary */}
                       {q.type === 'wordsearch' && (
@@ -2195,6 +2404,33 @@ export default function App() {
                 </div>
 
                 <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ?.question}</h2>
+
+                {/* JUMBLE PROJECTOR DISPLAY */}
+                {currQ?.type === 'jumble' && (
+                  <div className="my-6 space-y-4">
+                    <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Scrambled Letters:</span>
+                    <div className="flex justify-center flex-wrap gap-3">
+                      {(game.status === 'REVEAL' ? currQ.targetWord : (currQ.scrambledLetters || currQ.targetWord)).split('').map((char, i) => (
+                        <div
+                          key={i}
+                          className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center font-black text-3xl md:text-4xl shadow-2xl transition-all duration-500 ${
+                            game.status === 'REVEAL'
+                              ? 'bg-emerald-600 text-white border-2 border-emerald-400 scale-105 shadow-emerald-500/40'
+                              : 'bg-slate-900 border-2 border-indigo-500/50 text-amber-400'
+                          }`}
+                        >
+                          {char}
+                        </div>
+                      ))}
+                    </div>
+
+                    {game.status === 'REVEAL' && (
+                      <p className="text-emerald-400 font-bold tracking-wider text-sm mt-2">
+                        ✓ Correct Unscrambled Word: {currQ.targetWord}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* WORD SEARCH PROJECTOR DISPLAY */}
                 {currQ?.type === 'wordsearch' && currQ?.imageUrl && (
