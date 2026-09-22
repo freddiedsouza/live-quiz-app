@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { ref, set, update, onValue, get } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 import { 
-  Users, Trophy, Clock, CheckCircle2, XCircle, Play, 
-  ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, Image as ImageIcon
+  Users, Trophy, Clock, CheckCircle2, Play, 
+  ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
+  Trash2, Edit3, HelpCircle, Layers, CheckSquare
 } from 'lucide-react';
 
 const INITIAL_QUESTIONS = [
   {
-    id: 1,
+    id: "q_1",
     type: "mcq",
     question: "Which planet in our solar system has the most moons?",
     options: ["Jupiter", "Saturn", "Uranus", "Neptune"],
@@ -18,7 +19,7 @@ const INITIAL_QUESTIONS = [
     timeLimit: 20
   },
   {
-    id: 2,
+    id: "q_2",
     type: "boolean",
     question: "Sound travels faster in water than in air.",
     options: ["True", "False"],
@@ -26,15 +27,17 @@ const INITIAL_QUESTIONS = [
     timeLimit: 15
   },
   {
-    id: 3,
+    id: "q_3",
     type: "diagram",
-    question: "Spot the hidden Queen Bee in the honeycomb pattern! (Tap her on the image)",
+    question: "Spot the hidden Queen Bee in the honeycomb pattern! (Tap on the image)",
     imageUrl: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=800&q=80",
     target: { xMin: 40, xMax: 60, yMin: 40, yMax: 60 },
+    options: ["Tap the spot on screen"],
+    correctIndex: 0,
     timeLimit: 30
   },
   {
-    id: 4,
+    id: "q_4",
     type: "mcq",
     question: "Matchstick Puzzle: Move 1 stick to fix 6 + 4 = 4. What is the correct equation?",
     options: ["0 + 4 = 4", "5 + 4 = 9", "8 - 4 = 4", "6 - 4 = 2"],
@@ -47,23 +50,28 @@ export default function App() {
   const [role, setRole] = useState(null); // 'admin' | 'participant'
   const [roomId, setRoomId] = useState("QUIZ1");
 
-  // Admin states
+  // Admin authentication and tabs
   const [adminPass, setAdminPass] = useState("");
   const [isAdminAuthed, setIsAdminAuthed] = useState(false);
+  const [adminTab, setAdminTab] = useState("live"); // "live" | "builder"
   const [questions, setQuestions] = useState(INITIAL_QUESTIONS);
 
-  // Question Creator quick-add state
-  const [newQType, setNewQType] = useState("mcq");
-  const [newQText, setNewQText] = useState("");
-  const [newQOptions, setNewQOptions] = useState(["", "", "", ""]);
-  const [newQCorrect, setNewQCorrect] = useState(0);
-  const [newQTime, setNewQTime] = useState(20);
-  const [newQImage, setNewQImage] = useState("");
+  // Question editor form state
+  const [editingQId, setEditingQId] = useState(null);
+  const [formData, setFormData] = useState({
+    type: "mcq",
+    question: "",
+    options: ["", "", "", ""],
+    correctIndex: 0,
+    timeLimit: 20,
+    imageUrl: "",
+    targetCoords: "30,30,70,70" // xMin,yMin,xMax,yMax for diagrams
+  });
 
   // Room / Game synchronized state
   const [game, setGame] = useState({
-    status: 'LOBBY', // 'LOBBY' | 'QUESTION' | 'REVEAL' | 'LEADERBOARD' | 'FINAL'
-    mode: 'INDIVIDUAL', // 'INDIVIDUAL' | 'TEAM'
+    status: 'LOBBY',
+    mode: 'INDIVIDUAL',
     currentIndex: 0,
     timeRemaining: 20,
     questionStartTime: 0
@@ -94,18 +102,18 @@ export default function App() {
     });
 
     const unsubPart = onValue(partRef, (snapshot) => {
-      const val = snapshot.val();
-      setParticipants(val || {});
+      setParticipants(snapshot.val() || {});
     });
 
     const unsubAns = onValue(ansRef, (snapshot) => {
-      const val = snapshot.val();
-      setAnswers(val || {});
+      setAnswers(snapshot.val() || {});
     });
 
     const unsubQ = onValue(qRef, (snapshot) => {
       const val = snapshot.val();
-      if (val && Array.isArray(val)) setQuestions(val);
+      if (val && Array.isArray(val) && val.length > 0) {
+        setQuestions(val);
+      }
     });
 
     return () => {
@@ -136,20 +144,20 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isAdminAuthed, game.status, roomId]);
 
-  // Handle Confetti on Final podium
+  // Confetti on final podium
   useEffect(() => {
     if (game.status === 'FINAL') {
       confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
     }
   }, [game.status]);
 
-  // Reset local answer selection on new question
+  // Reset local answer selection when question changes
   useEffect(() => {
     setSelectedAnswer(null);
     setTapCoords(null);
   }, [game.currentIndex, game.status]);
 
-  // Admin Operations
+  // Admin Actions
   const handleAdminLogin = (e) => {
     e.preventDefault();
     if (adminPass === "admin123") {
@@ -219,25 +227,97 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/answers`), {});
   };
 
-  const addCustomQuestion = (e) => {
+  // Question Management Functions
+  const resetQuestionForm = () => {
+    setEditingQId(null);
+    setFormData({
+      type: "mcq",
+      question: "",
+      options: ["", "", "", ""],
+      correctIndex: 0,
+      timeLimit: 20,
+      imageUrl: "",
+      targetCoords: "30,30,70,70"
+    });
+  };
+
+  const handleEditClick = (q) => {
+    setEditingQId(q.id);
+    let coordsStr = "30,30,70,70";
+    if (q.target) {
+      coordsStr = `${q.target.xMin},${q.target.yMin},${q.target.xMax},${q.target.yMax}`;
+    }
+    setFormData({
+      type: q.type,
+      question: q.question,
+      options: q.options && q.options.length ? q.options : ["", "", "", ""],
+      correctIndex: q.correctIndex || 0,
+      timeLimit: q.timeLimit || 20,
+      imageUrl: q.imageUrl || "",
+      targetCoords: coordsStr
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSaveQuestion = (e) => {
     e.preventDefault();
-    if (!newQText.trim()) return;
-    const newQ = {
-      id: Date.now(),
-      type: newQType,
-      question: newQText,
-      options: newQType === 'boolean' ? ["True", "False"] : newQOptions,
-      correctIndex: Number(newQCorrect),
-      timeLimit: Number(newQTime),
-      imageUrl: newQImage || null,
-      target: newQType === 'diagram' ? { xMin: 30, xMax: 70, yMin: 30, yMax: 70 } : null
+    if (!formData.question.trim()) {
+      alert("Question title cannot be blank");
+      return;
+    }
+
+    let finalOptions = formData.options;
+    if (formData.type === 'boolean') {
+      finalOptions = ["True", "False"];
+    } else if (formData.type === 'diagram') {
+      finalOptions = ["Visual Target Point"];
+    }
+
+    let parsedTarget = null;
+    if (formData.type === 'diagram') {
+      const parts = formData.targetCoords.split(',').map(n => Number(n.trim()));
+      parsedTarget = {
+        xMin: parts[0] || 25,
+        yMin: parts[1] || 25,
+        xMax: parts[2] || 75,
+        yMax: parts[3] || 75
+      };
+    }
+
+    const payload = {
+      id: editingQId || `q_${Date.now()}`,
+      type: formData.type,
+      question: formData.question.trim(),
+      options: finalOptions,
+      correctIndex: Number(formData.correctIndex),
+      timeLimit: Number(formData.timeLimit) || 20,
+      imageUrl: formData.imageUrl.trim() || null,
+      target: parsedTarget
     };
-    const updated = [...questions, newQ];
+
+    let updated = [];
+    if (editingQId) {
+      updated = questions.map(q => q.id === editingQId ? payload : q);
+    } else {
+      updated = [...questions, payload];
+    }
+
     setQuestions(updated);
     set(ref(db, `rooms/${roomId}/questions`), updated);
-    setNewQText("");
-    setNewQImage("");
-    alert("Question added to Quiz!");
+    resetQuestionForm();
+    alert("Question saved successfully to the bank!");
+  };
+
+  const handleDeleteQuestion = (id) => {
+    if (questions.length <= 1) {
+      alert("You need at least 1 question in the quiz bank.");
+      return;
+    }
+    if (confirm("Are you sure you want to delete this question?")) {
+      const updated = questions.filter(q => q.id !== id);
+      setQuestions(updated);
+      set(ref(db, `rooms/${roomId}/questions`), updated);
+    }
   };
 
   // Participant Operations
@@ -500,7 +580,7 @@ export default function App() {
     );
   }
 
-  // View: Admin Login Form
+  // View: Admin Passcode Login
   if (!isAdminAuthed) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -528,269 +608,433 @@ export default function App() {
     );
   }
 
-  // View: Admin Command Center & Projector Display
   const currentJoinUrl = window.location.origin;
 
+  // View: Admin Dashboard (Live Session & Question Bank Tabs)
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row">
-      {/* Sidebar: Control Panel */}
-      <div className="w-full md:w-80 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6">
-        <div className="space-y-6">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {/* Top Navigation Bar */}
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl">
+            <Sparkles className="w-5 h-5" />
+          </div>
           <div>
-            <span className="text-xs uppercase tracking-wider text-indigo-400 font-bold">Host Control</span>
-            <h2 className="text-2xl font-black">Quiz Admin</h2>
-          </div>
-
-          <div className="bg-slate-800/60 p-4 rounded-xl space-y-2 border border-slate-700/50">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Room PIN:</span>
-              <span className="font-mono font-bold text-indigo-400">{roomId}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Players Joined:</span>
-              <span className="font-bold text-emerald-400">{participantList.length}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Submissions:</span>
-              <span className="font-bold text-amber-400">{currentAnswerCount}</span>
-            </div>
-            <div className="flex justify-between text-sm pt-2 border-t border-slate-700/50">
-              <span className="text-slate-400">Mode:</span>
-              <button 
-                onClick={() => {
-                  const newMode = game.mode === 'INDIVIDUAL' ? 'TEAM' : 'INDIVIDUAL';
-                  update(ref(db, `rooms/${roomId}/game`), { mode: newMode });
-                }}
-                className="text-xs bg-indigo-600/30 text-indigo-300 px-2 py-0.5 rounded font-semibold hover:bg-indigo-600/50"
-              >
-                {game.mode}
-              </button>
-            </div>
-          </div>
-
-          {/* Live Stage Actions */}
-          <div className="space-y-3">
-            {game.status === 'LOBBY' && (
-              <button
-                onClick={startQuiz}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
-              >
-                <Play className="w-4 h-4 fill-current" /> Start Quiz
-              </button>
-            )}
-
-            {game.status === 'QUESTION' && (
-              <button
-                onClick={() => update(ref(db, `rooms/${roomId}/game`), { status: 'REVEAL', timeRemaining: 0 })}
-                className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold"
-              >
-                Reveal Correct Answer
-              </button>
-            )}
-
-            {game.status === 'REVEAL' && (
-              <button
-                onClick={showLeaderboard}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold flex items-center justify-center gap-2"
-              >
-                <Trophy className="w-4 h-4" /> Show Scores
-              </button>
-            )}
-
-            {game.status === 'LEADERBOARD' && (
-              <button
-                onClick={nextQuestion}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold flex items-center justify-center gap-2"
-              >
-                Next Question <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
-
-            <button
-              onClick={resetRoom}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="w-3 h-3" /> Reset Session to Lobby
-            </button>
+            <h1 className="text-lg font-bold">Quiz Host Center</h1>
+            <span className="text-xs text-slate-400">Room PIN: <b className="text-indigo-400">{roomId}</b></span>
           </div>
         </div>
 
-        {/* Quick Question Creator Drawer */}
-        <details className="bg-slate-800/40 border border-slate-800 rounded-xl p-3 text-xs">
-          <summary className="font-bold text-slate-300 cursor-pointer flex items-center gap-2">
-            <Plus className="w-3.5 h-3.5 text-indigo-400" /> Add Custom Question
-          </summary>
-          <form onSubmit={addCustomQuestion} className="space-y-2 mt-3 pt-2 border-t border-slate-700/50">
-            <select
-              value={newQType}
-              onChange={(e) => setNewQType(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white text-xs"
-            >
-              <option value="mcq">Multiple Choice</option>
-              <option value="boolean">True / False</option>
-              <option value="diagram">Find Animal / Diagram</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Question prompt"
-              value={newQText}
-              onChange={(e) => setNewQText(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white"
-            />
-            {newQType === 'diagram' && (
-              <input
-                type="text"
-                placeholder="Image URL (https://...)"
-                value={newQImage}
-                onChange={(e) => setNewQImage(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-white"
-              />
-            )}
-            {newQType === 'mcq' && (
-              <div className="space-y-1">
-                {newQOptions.map((opt, i) => (
+        <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
+          <button
+            onClick={() => setAdminTab("live")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 ${adminTab === "live" ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-white"}`}
+          >
+            <Monitor className="w-3.5 h-3.5" /> Projector & Live Game
+          </button>
+          <button
+            onClick={() => setAdminTab("builder")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 ${adminTab === "builder" ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-white"}`}
+          >
+            <Layers className="w-3.5 h-3.5" /> Question Bank ({questions.length})
+          </button>
+        </div>
+      </header>
+
+      {/* TAB 1: QUESTION BANK BUILDER */}
+      {adminTab === "builder" && (
+        <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* Question Form */}
+          <div className="md:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 h-fit space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                {editingQId ? <Edit3 className="w-5 h-5 text-amber-400" /> : <Plus className="w-5 h-5 text-indigo-400" />}
+                {editingQId ? "Edit Question" : "Create New Question"}
+              </h2>
+              {editingQId && (
+                <button onClick={resetQuestionForm} className="text-xs text-slate-400 hover:text-white">
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveQuestion} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Question Category / Format</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none"
+                >
+                  <option value="mcq">Multiple Choice (MCQ / IQ / Matchstick)</option>
+                  <option value="boolean">True / False</option>
+                  <option value="diagram">Find Animal / Diagram Spot Challenge</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Question Statement</label>
+                <textarea
+                  required
+                  rows={2}
+                  placeholder="e.g. Which country won the 2022 World Cup?"
+                  value={formData.question}
+                  onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none"
+                />
+              </div>
+
+              {/* Optional Image for IQ/Matchstick or Diagram */}
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional / Diagram target)</label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/..."
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none"
+                />
+              </div>
+
+              {/* Diagram spot calibration */}
+              {formData.type === 'diagram' && (
+                <div className="bg-slate-850 p-3 rounded-xl border border-slate-800 space-y-1">
+                  <label className="block text-indigo-300 font-semibold">Target Box (xMin, yMin, xMax, yMax in %)</label>
                   <input
-                    key={i}
                     type="text"
-                    placeholder={`Option ${i + 1}`}
-                    value={opt}
-                    onChange={(e) => {
-                      const updated = [...newQOptions];
-                      updated[i] = e.target.value;
-                      setNewQOptions(updated);
-                    }}
-                    className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-white"
+                    value={formData.targetCoords}
+                    onChange={(e) => setFormData({ ...formData, targetCoords: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white"
                   />
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <input
-                type="number"
-                placeholder="Seconds"
-                value={newQTime}
-                onChange={(e) => setNewQTime(e.target.value)}
-                className="w-1/2 bg-slate-800 border border-slate-700 rounded p-1 text-white"
-              />
-              <input
-                type="number"
-                placeholder="Correct Index (0-3)"
-                value={newQCorrect}
-                onChange={(e) => setNewQCorrect(e.target.value)}
-                className="w-1/2 bg-slate-800 border border-slate-700 rounded p-1 text-white"
-              />
-            </div>
-            <button type="submit" className="w-full py-1.5 bg-indigo-600 rounded font-semibold text-white">
-              Save to Quiz
-            </button>
-          </form>
-        </details>
-      </div>
+                  <p className="text-[10px] text-slate-500">Default "30,30,70,70" detects clicks within central 40% area.</p>
+                </div>
+              )}
 
-      {/* Main Projector Screen */}
-      <div className="flex-1 p-6 flex flex-col justify-center items-center bg-slate-950 overflow-y-auto">
-        {game.status === 'LOBBY' && (
-          <div className="max-w-xl w-full text-center space-y-5 my-auto">
-            <h1 className="text-4xl md:text-5xl font-black tracking-tight">Join the Live Quiz!</h1>
-            
-            <div className="inline-block p-4 bg-white rounded-3xl shadow-2xl">
-              <QRCodeSVG value={currentJoinUrl} size={180} />
-            </div>
-
-            <div>
-              <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Scan QR or visit on your mobile:</p>
-              <p className="text-lg md:text-xl font-mono font-bold text-indigo-400 bg-slate-900 py-1.5 px-5 rounded-xl inline-block border border-slate-800 shadow-inner">
-                {currentJoinUrl}
-              </p>
-            </div>
-
-            {/* Prominent live participants list */}
-            <div className="pt-4 border-t border-slate-850 w-full">
-              <div className="text-xs uppercase text-slate-400 font-bold tracking-wider mb-3">
-                Connected Participants ({participantList.length})
-              </div>
-              
-              {participantList.length === 0 ? (
-                <p className="text-slate-600 text-sm italic">Waiting for players to join...</p>
-              ) : (
-                <div className="flex flex-wrap gap-2.5 justify-center max-h-44 overflow-y-auto px-2">
-                  {participantList.map((p, i) => (
-                    <span 
-                      key={i} 
-                      className="bg-indigo-950/60 border border-indigo-500/30 text-indigo-200 text-sm font-semibold px-3.5 py-1.5 rounded-xl shadow-sm flex items-center gap-2 animate-fade-in"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                      {p.name || 'Anonymous'} {p.team ? `[${p.team}]` : ''}
-                    </span>
+              {/* MCQ Options */}
+              {formData.type === 'mcq' && (
+                <div className="space-y-2">
+                  <label className="block text-slate-400 font-semibold">Options & Mark Correct One</label>
+                  {formData.options.map((opt, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="correctAnswer"
+                        checked={formData.correctIndex === i}
+                        onChange={() => setFormData({ ...formData, correctIndex: i })}
+                        className="accent-indigo-500 w-4 h-4 cursor-pointer"
+                      />
+                      <input
+                        required
+                        type="text"
+                        placeholder={`Option ${i + 1}`}
+                        value={opt}
+                        onChange={(e) => {
+                          const copy = [...formData.options];
+                          copy[i] = e.target.value;
+                          setFormData({ ...formData, options: copy });
+                        }}
+                        className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-white"
+                      />
+                    </div>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-        )}
 
-        {(game.status === 'QUESTION' || game.status === 'REVEAL') && (
-          <div className="max-w-3xl w-full my-auto space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-              <span className="text-lg font-bold text-indigo-400">Question {game.currentIndex + 1} of {questions.length}</span>
-              <div className="flex items-center gap-2 text-3xl font-black text-amber-400">
-                <Clock className="w-8 h-8" /> {game.timeRemaining}s
-              </div>
-            </div>
-
-            <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ.question}</h2>
-
-            {currQ.type === 'diagram' && currQ.imageUrl && (
-              <div className="max-h-80 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
-                <img src={currQ.imageUrl} alt="Diagram" className="max-h-80 object-contain" />
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              {currQ.options.map((opt, i) => {
-                let cardStyle = "bg-slate-900 border-slate-800 text-slate-300";
-                if (game.status === 'REVEAL') {
-                  if (i === currQ.correctIndex) {
-                    cardStyle = "bg-emerald-600/20 border-emerald-500 text-emerald-300 font-black scale-[1.02]";
-                  } else {
-                    cardStyle = "bg-slate-900/40 border-slate-900 text-slate-600";
-                  }
-                }
-                return (
-                  <div key={i} className={`p-4 rounded-xl border text-lg font-bold flex items-center justify-between transition-all ${cardStyle}`}>
-                    <span>{opt}</span>
-                    {game.status === 'REVEAL' && i === currQ.correctIndex && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+              {/* True/False selection */}
+              {formData.type === 'boolean' && (
+                <div className="space-y-2">
+                  <label className="block text-slate-400 font-semibold">Correct Answer</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="boolAns"
+                        checked={formData.correctIndex === 0}
+                        onChange={() => setFormData({ ...formData, correctIndex: 0 })}
+                        className="accent-indigo-500 w-4 h-4"
+                      />
+                      <span>True</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="boolAns"
+                        checked={formData.correctIndex === 1}
+                        onChange={() => setFormData({ ...formData, correctIndex: 1 })}
+                        className="accent-indigo-500 w-4 h-4"
+                      />
+                      <span>False</span>
+                    </label>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Time Limit (Seconds)</label>
+                <input
+                  type="number"
+                  min="5"
+                  max="120"
+                  value={formData.timeLimit}
+                  onChange={(e) => setFormData({ ...formData, timeLimit: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold text-sm text-white rounded-xl shadow-md transition"
+              >
+                {editingQId ? "Update Question in Bank" : "Save Question to Quiz Bank"}
+              </button>
+            </form>
           </div>
-        )}
 
-        {(game.status === 'LEADERBOARD' || game.status === 'FINAL') && (
-          <div className="max-w-xl w-full my-auto space-y-6">
-            <div className="text-center space-y-2">
-              <Trophy className="w-14 h-14 text-yellow-400 mx-auto" />
-              <h2 className="text-4xl font-black">{game.status === 'FINAL' ? "Final Podium" : "Current Standings"}</h2>
-              <p className="text-slate-400 text-sm">Sorted by total points scored</p>
+          {/* List of Questions in Bank */}
+          <div className="md:col-span-7 space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold">Current Questions ({questions.length})</h2>
+              <span className="text-xs text-slate-500">Live synced with participant lobby</span>
             </div>
 
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-              {getLeaderboard().slice(0, 5).map((entry, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-slate-900 p-4 rounded-2xl border border-slate-800">
-                  <div className="flex items-center gap-4">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-black' : idx === 1 ? 'bg-slate-300 text-black' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                      {idx + 1}
-                    </span>
-                    <span className="font-bold text-lg">{entry.name}</span>
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+              {questions.map((q, idx) => (
+                <div key={q.id || idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex gap-4 items-start hover:border-slate-700 transition">
+                  <span className="w-7 h-7 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black flex items-center justify-center text-indigo-400 flex-shrink-0">
+                    {idx + 1}
+                  </span>
+
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        {q.type} • {q.timeLimit}s
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEditClick(q)}
+                          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteQuestion(q.id)}
+                          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="font-semibold text-sm">{q.question}</p>
+
+                    {q.imageUrl && (
+                      <img src={q.imageUrl} alt="preview" className="h-20 w-32 object-cover rounded-lg border border-slate-800" />
+                    )}
+
+                    {q.type === 'mcq' && (
+                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        {q.options.map((opt, oIdx) => (
+                          <span
+                            key={oIdx}
+                            className={`text-xs px-2 py-1 rounded border truncate ${oIdx === q.correctIndex ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 font-bold' : 'bg-slate-950/50 border-slate-800 text-slate-400'}`}
+                          >
+                            {opt}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-indigo-400 font-extrabold text-xl">{entry.score || 0} pts</span>
                 </div>
               ))}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* TAB 2: LIVE HOST & PROJECTOR VIEW */}
+      {adminTab === "live" && (
+        <div className="flex-1 flex flex-col md:flex-row">
+          {/* Sidebar controls */}
+          <div className="w-full md:w-80 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6">
+            <div className="space-y-6">
+              <div className="bg-slate-800/60 p-4 rounded-xl space-y-2 border border-slate-700/50">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Players Joined:</span>
+                  <span className="font-bold text-emerald-400">{participantList.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Submissions:</span>
+                  <span className="font-bold text-amber-400">{currentAnswerCount}</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-slate-700/50">
+                  <span className="text-slate-400">Mode:</span>
+                  <button 
+                    onClick={() => {
+                      const newMode = game.mode === 'INDIVIDUAL' ? 'TEAM' : 'INDIVIDUAL';
+                      update(ref(db, `rooms/${roomId}/game`), { mode: newMode });
+                    }}
+                    className="text-xs bg-indigo-600/30 text-indigo-300 px-2 py-0.5 rounded font-semibold hover:bg-indigo-600/50"
+                  >
+                    {game.mode}
+                  </button>
+                </div>
+              </div>
+
+              {/* Stage Control Buttons */}
+              <div className="space-y-3">
+                {game.status === 'LOBBY' && (
+                  <button
+                    onClick={startQuiz}
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                  >
+                    <Play className="w-4 h-4 fill-current" /> Start Quiz
+                  </button>
+                )}
+
+                {game.status === 'QUESTION' && (
+                  <button
+                    onClick={() => update(ref(db, `rooms/${roomId}/game`), { status: 'REVEAL', timeRemaining: 0 })}
+                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold"
+                  >
+                    Reveal Correct Answer
+                  </button>
+                )}
+
+                {game.status === 'REVEAL' && (
+                  <button
+                    onClick={showLeaderboard}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    <Trophy className="w-4 h-4" /> Show Standings
+                  </button>
+                )}
+
+                {game.status === 'LEADERBOARD' && (
+                  <button
+                    onClick={nextQuestion}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    Next Question <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
+
+                <button
+                  onClick={resetRoom}
+                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-3 h-3" /> Reset Session to Lobby
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Projector Screen */}
+          <div className="flex-1 p-6 flex flex-col justify-center items-center bg-slate-950 overflow-y-auto">
+            {game.status === 'LOBBY' && (
+              <div className="max-w-xl w-full text-center space-y-5 my-auto">
+                <h1 className="text-4xl md:text-5xl font-black tracking-tight">Join the Live Quiz!</h1>
+                
+                <div className="inline-block p-4 bg-white rounded-3xl shadow-2xl">
+                  <QRCodeSVG value={currentJoinUrl} size={180} />
+                </div>
+
+                <div>
+                  <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Scan QR or visit on your mobile:</p>
+                  <p className="text-lg md:text-xl font-mono font-bold text-indigo-400 bg-slate-900 py-1.5 px-5 rounded-xl inline-block border border-slate-800 shadow-inner">
+                    {currentJoinUrl}
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-slate-850 w-full">
+                  <div className="text-xs uppercase text-slate-400 font-bold tracking-wider mb-3">
+                    Connected Participants ({participantList.length})
+                  </div>
+                  
+                  {participantList.length === 0 ? (
+                    <p className="text-slate-600 text-sm italic">Waiting for players to join...</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2.5 justify-center max-h-44 overflow-y-auto px-2">
+                      {participantList.map((p, i) => (
+                        <span 
+                          key={i} 
+                          className="bg-indigo-950/60 border border-indigo-500/30 text-indigo-200 text-sm font-semibold px-3.5 py-1.5 rounded-xl shadow-sm flex items-center gap-2 animate-fade-in"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                          {p.name || 'Anonymous'} {p.team ? `[${p.team}]` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {(game.status === 'QUESTION' || game.status === 'REVEAL') && (
+              <div className="max-w-3xl w-full my-auto space-y-6">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+                  <span className="text-lg font-bold text-indigo-400">Question {game.currentIndex + 1} of {questions.length}</span>
+                  <div className="flex items-center gap-2 text-3xl font-black text-amber-400">
+                    <Clock className="w-8 h-8" /> {game.timeRemaining}s
+                  </div>
+                </div>
+
+                <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ.question}</h2>
+
+                {currQ.type === 'diagram' && currQ.imageUrl && (
+                  <div className="max-h-80 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
+                    <img src={currQ.imageUrl} alt="Diagram" className="max-h-80 object-contain" />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  {currQ.options.map((opt, i) => {
+                    let cardStyle = "bg-slate-900 border-slate-800 text-slate-300";
+                    if (game.status === 'REVEAL') {
+                      if (i === currQ.correctIndex) {
+                        cardStyle = "bg-emerald-600/20 border-emerald-500 text-emerald-300 font-black scale-[1.02]";
+                      } else {
+                        cardStyle = "bg-slate-900/40 border-slate-900 text-slate-600";
+                      }
+                    }
+                    return (
+                      <div key={i} className={`p-4 rounded-xl border text-lg font-bold flex items-center justify-between transition-all ${cardStyle}`}>
+                        <span>{opt}</span>
+                        {game.status === 'REVEAL' && i === currQ.correctIndex && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {(game.status === 'LEADERBOARD' || game.status === 'FINAL') && (
+              <div className="max-w-xl w-full my-auto space-y-6">
+                <div className="text-center space-y-2">
+                  <Trophy className="w-14 h-14 text-yellow-400 mx-auto" />
+                  <h2 className="text-4xl font-black">{game.status === 'FINAL' ? "Final Podium" : "Current Standings"}</h2>
+                  <p className="text-slate-400 text-sm">Sorted by total points scored</p>
+                </div>
+
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                  {getLeaderboard().slice(0, 5).map((entry, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                      <div className="flex items-center gap-4">
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-black' : idx === 1 ? 'bg-slate-300 text-black' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                          {idx + 1}
+                        </span>
+                        <span className="font-bold text-lg">{entry.name}</span>
+                      </div>
+                      <span className="text-indigo-400 font-extrabold text-xl">{entry.score || 0} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
