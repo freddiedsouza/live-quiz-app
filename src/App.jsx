@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { 
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
-  Trash2, Edit3, Layers, Check, X, Info, RotateCcw
+  Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type
 } from 'lucide-react';
 
 const PUZZLE_14_INITIAL = [
@@ -26,6 +26,15 @@ const PUZZLE_14_SOLUTION = [
 ];
 
 const INITIAL_QUESTIONS = [
+  {
+    id: "q_word_1",
+    type: "word",
+    question: "GUESS THE WORD: Look at the visual clues (👀 + 🪚) and type the word!",
+    imageUrl: "https://i.ibb.co/vzjKj5T/seesaw-clue.png", // or custom image
+    acceptedAnswers: ["seesaw", "see saw", "see-saw"],
+    timeLimit: 25,
+    explanation: "Two eyes represent 'SEE' and the tool represents 'SAW' = SEESAW!"
+  },
   {
     id: "q_match_1",
     type: "matchstick",
@@ -56,17 +65,6 @@ const INITIAL_QUESTIONS = [
     correctIndex: 1,
     timeLimit: 20,
     explanation: "Saturn has 146 confirmed moons, overtaking Jupiter's 95 moons."
-  },
-  {
-    id: "q_3",
-    type: "diagram",
-    question: "Spot the hidden Queen Bee in the honeycomb pattern! (Tap her on the image)",
-    imageUrl: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=800&q=80",
-    target: { xMin: 40, xMax: 60, yMin: 40, yMax: 60 },
-    options: ["Visual Target"],
-    correctIndex: 0,
-    timeLimit: 30,
-    explanation: "The Queen Bee is situated right in the center with a longer thorax and distinct amber abdomen."
   }
 ];
 
@@ -176,14 +174,15 @@ export default function App() {
 
   // Question Form Builder state
   const [editingQId, setEditingQId] = useState(null);
-  const [qType, setQType] = useState("boolean");
+  const [qType, setQType] = useState("word");
   const [qText, setQText] = useState("");
   const [qOptions, setQOptions] = useState(["True", "False"]);
   const [qCorrectIndex, setQCorrectIndex] = useState(0);
-  const [qTimeLimit, setQTimeLimit] = useState(20);
+  const [qTimeLimit, setQTimeLimit] = useState(25);
   const [qImageUrl, setQImageUrl] = useState("");
   const [qTargetCoords, setQTargetCoords] = useState("30,30,70,70");
   const [qExplanation, setQExplanation] = useState("");
+  const [qAcceptedAnswers, setQAcceptedAnswers] = useState("seesaw, see saw");
   const [qMatchInitial, setQMatchInitial] = useState(PUZZLE_14_INITIAL);
   const [qMatchSolution, setQMatchSolution] = useState(PUZZLE_14_SOLUTION);
   const [statusMessage, setStatusMessage] = useState("");
@@ -205,6 +204,7 @@ export default function App() {
   const [teamName, setTeamName] = useState("");
   const [hasJoined, setHasJoined] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [typedAnswer, setTypedAnswer] = useState("");
   const [tapCoords, setTapCoords] = useState(null);
 
   // Participant Matchstick interactive state
@@ -276,6 +276,7 @@ export default function App() {
 
   useEffect(() => {
     setSelectedAnswer(null);
+    setTypedAnswer("");
     setTapCoords(null);
     const curr = questions[game.currentIndex];
     if (curr && curr.type === 'matchstick') {
@@ -297,7 +298,7 @@ export default function App() {
               status: 'LOBBY',
               mode: 'INDIVIDUAL',
               currentIndex: 0,
-              timeRemaining: 20,
+              timeRemaining: 25,
               questionStartTime: Date.now()
             },
             questions: INITIAL_QUESTIONS,
@@ -357,14 +358,15 @@ export default function App() {
   // Question Management Form Handlers
   const resetForm = () => {
     setEditingQId(null);
-    setQType("boolean");
+    setQType("word");
     setQText("");
     setQOptions(["True", "False"]);
     setQCorrectIndex(0);
-    setQTimeLimit(20);
+    setQTimeLimit(25);
     setQImageUrl("");
     setQTargetCoords("30,30,70,70");
     setQExplanation("");
+    setQAcceptedAnswers("");
     setQMatchInitial(PUZZLE_14_INITIAL);
     setQMatchSolution(PUZZLE_14_SOLUTION);
   };
@@ -378,6 +380,9 @@ export default function App() {
     setQTimeLimit(q.timeLimit || 20);
     setQImageUrl(q.imageUrl || "");
     setQExplanation(q.explanation || "");
+    if (q.type === 'word') {
+      setQAcceptedAnswers(Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : "");
+    }
     if (q.type === 'matchstick') {
       setQMatchInitial(q.initialSticks || PUZZLE_14_INITIAL);
       setQMatchSolution(q.validSolutions?.[0] || PUZZLE_14_SOLUTION);
@@ -419,6 +424,8 @@ export default function App() {
       if (qCorrectIndex > 1) setQCorrectIndex(0);
     } else if (type === 'mcq' && qOptions.length < 4) {
       setQOptions(["", "", "", ""]);
+    } else if (type === 'word') {
+      setQTimeLimit(25);
     } else if (type === 'matchstick') {
       setQTimeLimit(45);
     }
@@ -432,12 +439,24 @@ export default function App() {
     }
 
     let finalOptions = qOptions;
+    let accepted = [];
+
     if (qType === 'boolean') {
       finalOptions = ["True", "False"];
     } else if (qType === 'diagram') {
       finalOptions = ["Target Spot on Image"];
     } else if (qType === 'matchstick') {
       finalOptions = ["Interactive Matchstick Grid"];
+    } else if (qType === 'word') {
+      finalOptions = ["Typed Answer"];
+      accepted = qAcceptedAnswers
+        .split(',')
+        .map(a => a.trim().toLowerCase())
+        .filter(a => a.length > 0);
+      if (accepted.length === 0) {
+        setStatusMessage("Error: Provide at least one accepted answer for Guess the Word.");
+        return;
+      }
     } else {
       const cleanOptions = qOptions.map(opt => opt.trim());
       if (cleanOptions.some(opt => opt === "")) {
@@ -467,6 +486,7 @@ export default function App() {
       timeLimit: Number(qTimeLimit) || 20,
       imageUrl: qImageUrl.trim() || null,
       explanation: qExplanation.trim() || null,
+      acceptedAnswers: qType === 'word' ? accepted : null,
       target: parsedTarget,
       initialSticks: qType === 'matchstick' ? qMatchInitial : null,
       validSolutions: qType === 'matchstick' ? [qMatchSolution] : null
@@ -546,13 +566,47 @@ export default function App() {
     }
   };
 
+  // Submit Typed Word Riddle
+  const submitWordAnswer = (e) => {
+    e.preventDefault();
+    if (!typedAnswer.trim() || selectedAnswer !== null || game.status !== 'QUESTION') return;
+    const curr = questions[game.currentIndex];
+    const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
+
+    const cleanInput = typedAnswer.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    let isCorrect = false;
+
+    if (curr.acceptedAnswers && Array.isArray(curr.acceptedAnswers)) {
+      isCorrect = curr.acceptedAnswers.some(ans => {
+        const cleanAns = ans.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanAns === cleanInput;
+      });
+    }
+
+    setSelectedAnswer(typedAnswer.trim());
+
+    set(ref(db, `rooms/${roomId}/answers/${participantId}`), {
+      answer: typedAnswer.trim(),
+      isCorrect,
+      timeRemaining: game.timeRemaining
+    });
+
+    if (isCorrect) {
+      const addedPoints = 120 + (game.timeRemaining * 10);
+      const currentScore = participants[participantId]?.score || 0;
+      update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
+        score: currentScore + addedPoints
+      });
+    }
+  };
+
   const submitAnswer = (optionIdx, coords = null) => {
     if (selectedAnswer !== null || game.status !== 'QUESTION') return;
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
-    const currQ = questions[game.currentIndex];
+    const curr = questions[game.currentIndex];
     
     let isCorrect = false;
-    if (currQ.type === 'diagram' && coords && currQ.target) {
+    if (curr.type === 'diagram' && coords && curr.target) {
       isCorrect = 
         coords.x >= currQ.target.xMin && 
         coords.x <= currQ.target.xMax && 
@@ -621,7 +675,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight">Live Interactive Quiz</h1>
-            <p className="text-slate-400 mt-2">Real-time mobile trivia, matchstick puzzles & challenges</p>
+            <p className="text-slate-400 mt-2">Trivia, Word Riddles, Matchsticks & Visuals</p>
           </div>
 
           <div className="space-y-4 pt-4">
@@ -643,7 +697,7 @@ export default function App() {
     );
   }
 
-  // View: Participant Portal (Mobile phone)
+  // View: Participant Mobile Screen
   if (role === 'participant') {
     if (!hasJoined) {
       return (
@@ -722,6 +776,45 @@ export default function App() {
             </div>
 
             <h3 className="text-base font-bold mb-3 leading-snug">{currQ.question}</h3>
+
+            {/* GUESS THE WORD: IMAGE DISPLAY */}
+            {currQ.type === 'word' && currQ.imageUrl && (
+              <div className="mb-4 rounded-2xl overflow-hidden border border-slate-800 flex justify-center bg-black">
+                <img src={currQ.imageUrl} alt="Clue" className="max-h-48 object-contain" />
+              </div>
+            )}
+
+            {/* GUESS THE WORD: TEXT ENTRY BOX */}
+            {currQ.type === 'word' && (
+              <div className="space-y-4 my-2">
+                {game.status === 'QUESTION' && selectedAnswer === null && (
+                  <form onSubmit={submitWordAnswer} className="space-y-3">
+                    <input
+                      type="text"
+                      autoFocus
+                      required
+                      placeholder="Type your answer here..."
+                      value={typedAnswer}
+                      onChange={(e) => setTypedAnswer(e.target.value)}
+                      className="w-full text-center text-lg uppercase tracking-wider font-extrabold bg-slate-900 border-2 border-indigo-500/60 rounded-2xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-400 shadow-inner"
+                    />
+                    <button
+                      type="submit"
+                      className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 font-extrabold rounded-2xl text-base text-white shadow-lg shadow-indigo-600/30 transition active:scale-[0.98]"
+                    >
+                      Submit Word
+                    </button>
+                  </form>
+                )}
+
+                {selectedAnswer !== null && (
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center space-y-1">
+                    <span className="text-xs text-slate-400 uppercase">You Answered:</span>
+                    <p className="text-2xl font-black text-indigo-400 tracking-wide">{selectedAnswer}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* MATCHSTICK INTERACTIVE BOARD */}
             {currQ.type === 'matchstick' && (
@@ -824,12 +917,20 @@ export default function App() {
           </div>
 
           <div>
-            {game.status === 'REVEAL' && currQ.explanation && (
+            {game.status === 'REVEAL' && (
               <div className="mt-4 p-4 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
-                <div className="flex items-center gap-2 text-indigo-300 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Info className="w-4 h-4 text-indigo-400" /> Explanation / Reason:
-                </div>
-                <p className="text-slate-200 text-sm leading-relaxed">{currQ.explanation}</p>
+                {currQ.type === 'word' && (
+                  <div className="mb-2">
+                    <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Correct Word:</span>
+                    <p className="text-xl font-black text-white uppercase">{currQ.acceptedAnswers?.[0]}</p>
+                  </div>
+                )}
+                {currQ.explanation && (
+                  <div className="flex items-start gap-1.5 text-slate-300 text-xs">
+                    <Info className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                    <p>{currQ.explanation}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -949,10 +1050,10 @@ export default function App() {
                 <label className="block text-slate-400 font-semibold mb-1">Format</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
+                    { id: 'word', label: 'Guess Word' },
                     { id: 'boolean', label: 'True / False' },
                     { id: 'mcq', label: 'Multiple Choice' },
-                    { id: 'matchstick', label: 'Matchstick' },
-                    { id: 'diagram', label: 'Diagram Spot' }
+                    { id: 'matchstick', label: 'Matchstick' }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -971,12 +1072,32 @@ export default function App() {
                 <textarea
                   required
                   rows={2}
-                  placeholder={qType === 'boolean' ? "e.g. Lightning never strikes the same place twice." : qType === 'matchstick' ? "e.g. Remove 2 matchsticks to leave 2 squares!" : "Enter question prompt..."}
+                  placeholder={qType === 'word' ? "e.g. Look at the two pictures and guess the compound word!" : "Enter question prompt..."}
                   value={qText}
                   onChange={(e) => setQText(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
+
+              {/* GUESS THE WORD: ACCEPTED WORDS INPUT */}
+              {qType === 'word' && (
+                <div className="p-3 bg-indigo-950/20 border border-indigo-500/30 rounded-xl space-y-1">
+                  <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
+                    <Type className="w-3.5 h-3.5" /> Accepted Answers (Comma-separated):
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. seesaw, see saw, see-saw"
+                    value={qAcceptedAnswers}
+                    onChange={(e) => setQAcceptedAnswers(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    Matches are case-insensitive and ignore spaces or hyphens automatically.
+                  </p>
+                </div>
+              )}
 
               {/* TRUE / FALSE SELECTION */}
               {qType === 'boolean' && (
@@ -1091,36 +1212,23 @@ export default function App() {
                 </div>
               )}
 
-              {/* DIAGRAM TARGET BOX */}
-              {qType === 'diagram' && (
-                <div className="bg-slate-850 p-3 rounded-xl border border-slate-800 space-y-1">
-                  <label className="block text-indigo-300 font-semibold">Target Box (xMin, yMin, xMax, yMax in %)</label>
-                  <input
-                    type="text"
-                    value={qTargetCoords}
-                    onChange={(e) => setQTargetCoords(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white"
-                  />
-                </div>
-              )}
-
               {/* REASON / EXPLANATION FIELD */}
               <div className="p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-xl space-y-1">
                 <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5" /> Reason / Explanation for Participants:
+                  <Info className="w-3.5 h-3.5" /> Explanation for Participants:
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Explain why this answer is correct (shown to everyone on Reveal)..."
+                  placeholder="Explain the clue / solution (shown on Reveal)..."
                   value={qExplanation}
                   onChange={(e) => setQExplanation(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
                 />
               </div>
 
-              {/* OPTIONAL IMAGE */}
+              {/* IMAGE URL */}
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional)</label>
+                <label className="block text-slate-400 font-semibold mb-1">Image URL (Clue Picture)</label>
                 <input
                   type="url"
                   placeholder="https://..."
@@ -1128,6 +1236,11 @@ export default function App() {
                   onChange={(e) => setQImageUrl(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none"
                 />
+                {qImageUrl && (
+                  <div className="mt-2 p-1 bg-black rounded-lg border border-slate-800 flex justify-center">
+                    <img src={qImageUrl} alt="Preview" className="h-24 object-contain" />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1190,6 +1303,16 @@ export default function App() {
 
                     <p className="font-semibold text-sm leading-snug">{q.question}</p>
 
+                    {q.type === 'word' && (
+                      <div className="text-xs text-indigo-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+                        <b>Accepted:</b> {Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : ""}
+                      </div>
+                    )}
+
+                    {q.imageUrl && (
+                      <img src={q.imageUrl} alt="Clue" className="h-16 w-28 object-contain rounded-lg border border-slate-800 bg-black" />
+                    )}
+
                     {q.type === 'matchstick' && (
                       <div className="p-2 bg-black/40 rounded-xl border border-slate-800 flex items-center gap-3">
                         <div className="w-16 h-16 flex-shrink-0">
@@ -1197,7 +1320,6 @@ export default function App() {
                         </div>
                         <div className="text-[11px] text-slate-400">
                           <p className="text-amber-400 font-bold">Interactive Matchstick Board</p>
-                          <p>Tappable grid on participant screens.</p>
                         </div>
                       </div>
                     )}
@@ -1366,6 +1488,24 @@ export default function App() {
 
                 <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ.question}</h2>
 
+                {/* Guess the Word Projector View */}
+                {currQ.type === 'word' && currQ.imageUrl && (
+                  <div className="max-h-80 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
+                    <img src={currQ.imageUrl} alt="Clue" className="max-h-80 object-contain" />
+                  </div>
+                )}
+
+                {/* Word Answer on Reveal */}
+                {game.status === 'REVEAL' && currQ.type === 'word' && (
+                  <div className="p-6 rounded-2xl bg-emerald-950/40 border-2 border-emerald-500 text-center animate-bounce-short">
+                    <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold">Answer:</span>
+                    <p className="text-4xl font-black text-white mt-1 tracking-wider uppercase">
+                      {currQ.acceptedAnswers?.[0]}
+                    </p>
+                  </div>
+                )}
+
+                {/* Matchstick Projector View */}
                 {currQ.type === 'matchstick' && (
                   <div className="flex flex-col items-center">
                     <MatchstickBoard
@@ -1425,7 +1565,7 @@ export default function App() {
                 {game.status === 'REVEAL' && currQ.explanation && (
                   <div className="p-5 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
                     <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm uppercase tracking-wider mb-1">
-                      <Info className="w-4 h-4 text-indigo-400" /> Explanation / Reason:
+                      <Info className="w-4 h-4 text-indigo-400" /> Explanation / Clue Breakdown:
                     </div>
                     <p className="text-slate-200 text-base leading-relaxed">{currQ.explanation}</p>
                   </div>
