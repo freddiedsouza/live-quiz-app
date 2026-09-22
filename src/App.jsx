@@ -26,7 +26,6 @@ const PUZZLE_14_SOLUTION = [
   "H_2_0", "H_2_1"
 ];
 
-// Helper to shuffle letters
 function shuffleWord(word) {
   const arr = word.toUpperCase().split('');
   for (let i = arr.length - 1; i > 0; i--) {
@@ -46,7 +45,7 @@ const INITIAL_QUESTIONS = [
     targetWord: "PLANET",
     scrambledLetters: "TNAPEL",
     timeLimit: 30,
-    explanation: "The unscrambled word is PLANET (a celestial body orbiting a star)!"
+    explanation: "The unscrambled word is PLANET!"
   },
   {
     id: "q_search_multi_1",
@@ -61,7 +60,7 @@ const INITIAL_QUESTIONS = [
     ],
     pointsPerWord: 100,
     timeLimit: 45,
-    explanation: "SUN, MOON, and STAR were all hidden horizontally in rows 1, 2, and 3!"
+    explanation: "SUN, MOON, and STAR were hidden in the puzzle rows!"
   },
   {
     id: "q_word_1",
@@ -72,7 +71,7 @@ const INITIAL_QUESTIONS = [
     image2: "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?auto=format&fit=crop&w=400&q=80",
     acceptedAnswers: ["seesaw", "see saw", "see-saw"],
     timeLimit: 25,
-    explanation: "Picture 1 = SEE (Eyes) + Picture 2 = SAW (Hand tool) -> SEESAW!"
+    explanation: "Picture 1 = SEE (Eyes) + Picture 2 = SAW (Tool) -> SEESAW!"
   },
   {
     id: "q_match_1",
@@ -86,7 +85,7 @@ const INITIAL_QUESTIONS = [
       PUZZLE_14_SOLUTION,
       ["H_0_0", "H_0_1", "V_0_0", "V_0_2", "H_1_1", "V_1_0", "V_1_1", "V_1_2", "H_2_0", "H_2_1"]
     ],
-    explanation: "Removing one internal dividing stick and one outer branch eliminates two small squares while preserving the perimeter squares."
+    explanation: "Removing one internal stick and one branch leaves 2 squares."
   },
   {
     id: "q_1",
@@ -96,7 +95,7 @@ const INITIAL_QUESTIONS = [
     options: ["True", "False"],
     correctIndex: 0,
     timeLimit: 15,
-    explanation: "True! Water particles are packed much more densely than air molecules, allowing vibrations to transmit roughly 4.3 times faster."
+    explanation: "True! Water particles are packed much more densely than air molecules."
   },
   {
     id: "q_2",
@@ -106,7 +105,7 @@ const INITIAL_QUESTIONS = [
     options: ["Jupiter", "Saturn", "Uranus", "Neptune"],
     correctIndex: 1,
     timeLimit: 20,
-    explanation: "Saturn has 146 confirmed moons, overtaking Jupiter's 95 moons."
+    explanation: "Saturn has 146 confirmed moons, overtaking Jupiter."
   }
 ];
 
@@ -335,13 +334,11 @@ export default function App() {
   const [role, setRole] = useState(null);
   const [roomId, setRoomId] = useState("QUIZ1");
 
-  // Admin state - Passcode verification
   const [adminPass, setAdminPass] = useState("");
   const [isAdminAuthed, setIsAdminAuthed] = useState(false);
   const [adminTab, setAdminTab] = useState("live");
   const [questions, setQuestions] = useState(INITIAL_QUESTIONS);
 
-  // Form Builder state
   const [editingQId, setEditingQId] = useState(null);
   const [qType, setQType] = useState("jumble");
   const [qText, setQText] = useState("");
@@ -354,11 +351,9 @@ export default function App() {
   const [qExplanation, setQExplanation] = useState("");
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState("seesaw, see saw");
 
-  // Jumble Builder state
   const [qJumbleTarget, setQJumbleTarget] = useState("PLANET");
   const [qJumbleScrambled, setQJumbleScrambled] = useState("TNAPEL");
   
-  // Word Search Multi-word state
   const [qTargetWords, setQTargetWords] = useState([
     { id: "w_1", word: "SUN", highlight: { x1: 20, y1: 25, x2: 45, y2: 25 } },
     { id: "w_2", word: "MOON", highlight: { x1: 20, y1: 50, x2: 60, y2: 50 } }
@@ -371,7 +366,6 @@ export default function App() {
   const [qMatchSolution, setQMatchSolution] = useState(PUZZLE_14_SOLUTION);
   const [statusMessage, setStatusMessage] = useState("");
 
-  // Game synchronized state
   const [game, setGame] = useState({
     status: 'LOBBY',
     mode: 'INDIVIDUAL',
@@ -384,32 +378,27 @@ export default function App() {
   const [answers, setAnswers] = useState({});
   const [luckyWinner, setLuckyWinner] = useState(null);
 
-  // Lucky Draw animation state
   const [isSpinning, setIsSpinning] = useState(false);
   const [animatedName, setAnimatedName] = useState("");
 
-  // Participant local state
   const [playerName, setPlayerName] = useState("");
   const [teamName, setTeamName] = useState("");
   const [hasJoined, setHasJoined] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [typedAnswer, setTypedAnswer] = useState("");
 
-  // Participant interactive states
   const [userSticks, setUserSticks] = useState(PUZZLE_14_INITIAL);
   const [stickInventory, setStickInventory] = useState(0);
   const [foundWordIds, setFoundWordIds] = useState([]);
   const [persistedLines, setPersistedLines] = useState([]);
   const [participantDraftLine, setParticipantDraftLine] = useState(null);
 
-  // Participant Jumble state
   const [jumbleBank, setJumbleBank] = useState([]);
   const [jumbleSlots, setJumbleSlots] = useState([]);
 
   const activeQuestions = questions.filter(q => q.enabled !== false);
   const participantList = Object.values(participants);
 
-  // Firebase Realtime DB listeners
   useEffect(() => {
     if (!roomId) return;
 
@@ -452,7 +441,6 @@ export default function App() {
     };
   }, [roomId]);
 
-  // Admin countdown timer
   useEffect(() => {
     if (!isAdminAuthed || game.status !== 'QUESTION') return;
 
@@ -478,7 +466,6 @@ export default function App() {
     }
   }, [game.status, luckyWinner]);
 
-  // Reset round state on question change
   useEffect(() => {
     setSelectedAnswer(null);
     setTypedAnswer("");
@@ -498,7 +485,6 @@ export default function App() {
     }
   }, [game.currentIndex, game.status, questions]);
 
-  // Direct file uploads to Base64
   const handleFileUpload = (e, targetField) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -539,12 +525,15 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // Host login operation
   const handleAdminLogin = (e) => {
     e.preventDefault();
-    const entered = (adminPass || "").trim();
+    const formData = new FormData(e.currentTarget);
+    const fromForm = formData.get("adminPasscode");
+    const entered = ((fromForm !== null && fromForm !== undefined && fromForm !== "") ? fromForm : adminPass)
+      .toString()
+      .trim();
 
-    if (entered === "admin123") {
+    if (entered.toLowerCase() === "admin123") {
       setIsAdminAuthed(true);
       const roomRef = ref(db, `rooms/${roomId}`);
       get(roomRef)
@@ -608,7 +597,6 @@ export default function App() {
     update(ref(db, `rooms/${roomId}/game`), { status: 'LEADERBOARD' });
   };
 
-  // Run the Lucky Draw Wheel Randomizer
   const triggerLuckyDraw = () => {
     if (participantList.length === 0) {
       alert("No participants have joined yet to pick a winner from!");
@@ -870,7 +858,6 @@ export default function App() {
     }
   };
 
-  // Participant Jumble Interactions
   const handlePickJumbleTile = (tile) => {
     if (selectedAnswer !== null || game.status !== 'QUESTION' || tile.used) return;
     setJumbleSlots(prev => [...prev, tile]);
@@ -914,7 +901,6 @@ export default function App() {
     }
   };
 
-  // Participant Multi-word Highlighting Evaluation
   const handleParticipantCommitWordSearch = () => {
     if (!participantDraftLine || game.status !== 'QUESTION') return;
     const curr = activeQuestions[game.currentIndex];
@@ -960,7 +946,6 @@ export default function App() {
     setParticipantDraftLine(null);
   };
 
-  // Matchstick Interaction
   const handleStickToggle = (slotId) => {
     if (selectedAnswer !== null || game.status !== 'QUESTION') return;
     const isCurrentlyActive = userSticks.includes(slotId);
@@ -1008,7 +993,6 @@ export default function App() {
     }
   };
 
-  // Participant Typing Submission
   const submitWordAnswer = (e) => {
     e.preventDefault();
     if (!typedAnswer.trim() || selectedAnswer !== null || game.status !== 'QUESTION') return;
@@ -1176,7 +1160,6 @@ export default function App() {
       );
     }
 
-    // Participant Lucky Draw celebration view
     if (game.status === 'LUCKY_DRAW') {
       const isWinner = luckyWinner && luckyWinner.name?.toLowerCase().trim() === playerName?.toLowerCase().trim();
 
@@ -1252,10 +1235,8 @@ export default function App() {
 
             <h3 className="text-base font-bold mb-3 leading-snug">{currQ.question}</h3>
 
-            {/* JUMBLE LETTERS INTERACTIVE SCREEN */}
             {currQ.type === 'jumble' && (
               <div className="space-y-5 my-2">
-                {/* Empty Answer Slots on Top */}
                 <div className="space-y-1 text-center">
                   <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Your Assembled Word:</span>
                   <div className="flex flex-wrap gap-2 justify-center min-h-[58px] p-2 bg-slate-900/90 rounded-2xl border-2 border-dashed border-slate-700">
@@ -1276,7 +1257,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Scrambled Letter Tiles at Bottom */}
                 {selectedAnswer === null && game.status === 'QUESTION' && (
                   <div className="space-y-3">
                     <div className="flex justify-between items-center text-xs text-slate-400 px-1">
@@ -1325,7 +1305,6 @@ export default function App() {
               </div>
             )}
 
-            {/* MULTI-WORD SEARCH PUZZLE INTERACTION */}
             {currQ.type === 'wordsearch' && currQ.imageUrl && (
               <div className="space-y-3 flex flex-col items-center">
                 <div className="w-full bg-slate-900 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
@@ -1365,7 +1344,6 @@ export default function App() {
               </div>
             )}
 
-            {/* DUAL PICTURE CLUES FOR GUESS WORD */}
             {currQ.type === 'word' && (
               <div className="mb-4">
                 {currQ.image1 && currQ.image2 ? (
@@ -1386,7 +1364,6 @@ export default function App() {
               </div>
             )}
 
-            {/* WORD TYPING BOX */}
             {currQ.type === 'word' && (
               <div className="space-y-4 my-2">
                 {game.status === 'QUESTION' && selectedAnswer === null && (
@@ -1418,7 +1395,6 @@ export default function App() {
               </div>
             )}
 
-            {/* MATCHSTICK INTERACTIVE BOARD */}
             {currQ.type === 'matchstick' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 text-xs">
@@ -1452,7 +1428,6 @@ export default function App() {
               </div>
             )}
 
-            {/* TRUE / FALSE */}
             {currQ.type === 'boolean' && (
               <div className="grid grid-cols-2 gap-3 mt-4">
                 {currQ.options.map((opt, idx) => {
@@ -1483,7 +1458,6 @@ export default function App() {
               </div>
             )}
 
-            {/* MCQ */}
             {currQ.type === 'mcq' && (
               <div className="grid grid-cols-1 gap-3 mt-4">
                 {currQ.options.map((opt, idx) => {
@@ -1569,7 +1543,6 @@ export default function App() {
     );
   }
 
-  // Host access login screen
   if (!isAdminAuthed) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -1583,6 +1556,7 @@ export default function App() {
             type="password"
             id="admin-passcode"
             name="adminPasscode"
+            required
             autoComplete="current-password"
             placeholder="Enter passcode"
             value={adminPass}
@@ -1591,7 +1565,7 @@ export default function App() {
           />
           <button
             type="submit"
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl transition"
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl transition cursor-pointer"
           >
             Open Host Dashboard
           </button>
@@ -1631,7 +1605,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* QUESTION BUILDER */}
       {adminTab === "builder" && (
         <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
@@ -1692,7 +1665,6 @@ export default function App() {
                 />
               </div>
 
-              {/* JUMBLE WORD BUILDER */}
               {qType === 'jumble' && (
                 <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
                   <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
@@ -1700,11 +1672,11 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">Target Mystery Word (The Solution):</label>
+                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">Target Mystery Word (Solution):</label>
                     <input
                       required
                       type="text"
-                      placeholder="e.g. GALAXY"
+                      placeholder="e.g. PLANET"
                       value={qJumbleTarget}
                       onChange={(e) => {
                         const val = e.target.value.toUpperCase();
@@ -1717,7 +1689,7 @@ export default function App() {
 
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <label className="block text-[11px] text-slate-300 font-semibold">Scrambled Letters (Given to players):</label>
+                      <label className="block text-[11px] text-slate-300 font-semibold">Scrambled Letters:</label>
                       <button
                         type="button"
                         onClick={() => setQJumbleScrambled(shuffleWord(qJumbleTarget))}
@@ -1729,7 +1701,7 @@ export default function App() {
                     <input
                       required
                       type="text"
-                      placeholder="e.g. XAYGLA"
+                      placeholder="e.g. TNAPEL"
                       value={qJumbleScrambled}
                       onChange={(e) => setQJumbleScrambled(e.target.value.toUpperCase())}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-amber-300 font-mono uppercase tracking-widest text-sm font-bold"
@@ -1738,7 +1710,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* MULTI-WORD SEARCH BUILDER */}
               {qType === 'wordsearch' && (
                 <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
                   <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
@@ -1764,7 +1735,7 @@ export default function App() {
 
                   <div className="space-y-1.5">
                     <label className="block text-[11px] text-slate-400 font-semibold">
-                      Click a word below, then drag across its letters on the image to set its line:
+                      Click a word below, then drag across its letters on the image:
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {qTargetWords.map((item, idx) => {
@@ -1799,7 +1770,7 @@ export default function App() {
                   <div className="space-y-1.5 pt-2 border-t border-slate-800">
                     <label className="block text-[11px] text-slate-300 font-semibold">Upload Word Search Puzzle Image:</label>
                     <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
-                      <Upload className="w-3.5 h-3.5" /> Upload Puzzle Image File
+                      <Upload className="w-3.5 h-3.5" /> Upload Image
                       <input
                         type="file"
                         accept="image/*"
@@ -1809,7 +1780,7 @@ export default function App() {
                     </label>
                     <input
                       type="url"
-                      placeholder="Or paste puzzle image URL..."
+                      placeholder="Or paste URL..."
                       value={qImageUrl}
                       onChange={(e) => setQImageUrl(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-600 text-xs"
@@ -1819,7 +1790,7 @@ export default function App() {
                   {qImageUrl && qTargetWords[activeWordIndex] && (
                     <div className="space-y-1 pt-2">
                       <div className="flex justify-between items-center text-[11px] text-amber-400 font-semibold">
-                        <span>Calibrating word: <b className="text-white bg-indigo-900/60 px-2 py-0.5 rounded border border-indigo-500">{qTargetWords[activeWordIndex]?.word}</b></span>
+                        <span>Calibrating: <b className="text-white bg-indigo-900/60 px-2 py-0.5 rounded border border-indigo-500">{qTargetWords[activeWordIndex]?.word}</b></span>
                         <span className="text-slate-400 text-[10px]">Drag line over letters</span>
                       </div>
                       <div className="flex justify-center">
@@ -1844,7 +1815,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* DUAL IMAGE UPLOAD FOR GUESS WORD */}
               {qType === 'word' && (
                 <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
                   <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
@@ -1853,7 +1823,7 @@ export default function App() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="block text-[11px] text-slate-300 font-semibold">Image 1 (e.g. Eyes / See):</label>
+                      <label className="block text-[11px] text-slate-300 font-semibold">Image 1:</label>
                       <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
                         <Upload className="w-3.5 h-3.5" /> Upload File 1
                         <input
@@ -1865,7 +1835,7 @@ export default function App() {
                       </label>
                       <input
                         type="url"
-                        placeholder="Or paste URL here..."
+                        placeholder="Or paste URL..."
                         value={qImage1}
                         onChange={(e) => setQImage1(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white placeholder-slate-600 text-[11px]"
@@ -1878,7 +1848,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="block text-[11px] text-slate-300 font-semibold">Image 2 (e.g. Saw):</label>
+                      <label className="block text-[11px] text-slate-300 font-semibold">Image 2:</label>
                       <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
                         <Upload className="w-3.5 h-3.5" /> Upload File 2
                         <input
@@ -1890,7 +1860,7 @@ export default function App() {
                       </label>
                       <input
                         type="url"
-                        placeholder="Or paste URL here..."
+                        placeholder="Or paste URL..."
                         value={qImage2}
                         onChange={(e) => setQImage2(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white placeholder-slate-600 text-[11px]"
@@ -1905,7 +1875,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* ACCEPTED ANSWERS FOR GUESS WORD */}
               {qType === 'word' && (
                 <div className="p-3 bg-indigo-950/20 border border-indigo-500/30 rounded-xl space-y-1">
                   <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
@@ -1922,7 +1891,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* TRUE / FALSE */}
               {qType === 'boolean' && (
                 <div className="space-y-2">
                   <label className="block text-slate-400 font-semibold">Mark Correct Answer</label>
@@ -1945,15 +1913,14 @@ export default function App() {
                 </div>
               )}
 
-              {/* MCQ CHOICES */}
               {qType === 'mcq' && (
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <label className="block text-slate-400 font-semibold">Options (Click Mark to choose correct)</label>
+                    <label className="block text-slate-400 font-semibold">Options</label>
                     {qOptions.length < 6 && (
                       <button 
                         type="button" 
-                        onClick={addOptionField} 
+                        onClick={() => setQOptions([...qOptions, ""])} 
                         className="text-indigo-400 hover:text-indigo-300 font-bold text-[11px]"
                       >
                         + Add Choice
@@ -1976,9 +1943,13 @@ export default function App() {
                           <input
                             required
                             type="text"
-                            placeholder={`Option ${String.fromCharCode(65 + i)} text`}
+                            placeholder={`Option ${String.fromCharCode(65 + i)}`}
                             value={opt}
-                            onChange={(e) => handleOptionChange(i, e.target.value)}
+                            onChange={(e) => {
+                              const updated = [...qOptions];
+                              updated[i] = e.target.value;
+                              setQOptions(updated);
+                            }}
                             className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm px-2"
                           />
 
@@ -1990,6 +1961,20 @@ export default function App() {
                             {isCorrect ? <Check className="w-3.5 h-3.5" /> : null}
                             {isCorrect ? 'Correct' : 'Mark'}
                           </button>
+
+                          {qOptions.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = qOptions.filter((_, idx) => idx !== i);
+                                setQOptions(updated);
+                                if (qCorrectIndex >= updated.length) setQCorrectIndex(0);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -1997,7 +1982,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* MATCHSTICK GRID */}
               {qType === 'matchstick' && (
                 <div className="p-3 bg-slate-850 rounded-xl border border-slate-800 space-y-2">
                   <div className="flex justify-between items-center">
@@ -2007,7 +1991,7 @@ export default function App() {
                       onClick={() => setQMatchInitial(PUZZLE_14_INITIAL)}
                       className="text-[11px] text-slate-400 hover:text-white"
                     >
-                      Reset to Default Grid
+                      Reset Default Grid
                     </button>
                   </div>
                   <MatchstickBoard
@@ -2024,7 +2008,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* REASON / EXPLANATION */}
               <div className="p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-xl space-y-1">
                 <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
                   <Info className="w-3.5 h-3.5" /> Explanation for Participants:
@@ -2059,7 +2042,6 @@ export default function App() {
             </form>
           </div>
 
-          {/* Question List (Right Column) */}
           <div className="lg:col-span-6 space-y-4">
             <div className="flex justify-between items-center">
               <div>
@@ -2130,7 +2112,6 @@ export default function App() {
 
                       <p className={`font-semibold text-sm leading-snug ${isEnabled ? 'text-slate-200' : 'text-slate-500'}`}>{q.question}</p>
 
-                      {/* Jumble Summary */}
                       {q.type === 'jumble' && (
                         <div className="flex items-center gap-3 bg-slate-950/60 p-2 rounded-xl border border-slate-800 text-xs">
                           <span className="text-amber-400 font-mono tracking-widest font-bold">Scrambled: {q.scrambledLetters}</span>
@@ -2138,7 +2119,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Multi-Word Search summary */}
                       {q.type === 'wordsearch' && (
                         <div className="flex items-center gap-3">
                           {q.imageUrl && (
@@ -2159,7 +2139,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Word Question Clues */}
                       {q.type === 'word' && (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2">
@@ -2231,7 +2210,6 @@ export default function App() {
         </div>
       )}
 
-      {/* LIVE PROJECTOR & HOST VIEW */}
       {adminTab === "live" && (
         <div className="flex-1 flex flex-col md:flex-row">
           <div className="w-full md:w-80 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6">
@@ -2300,7 +2278,6 @@ export default function App() {
                   </button>
                 )}
 
-                {/* Permanent Lucky Draw Sidebar Button */}
                 <button
                   onClick={triggerLuckyDraw}
                   className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98]"
@@ -2358,7 +2335,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Lucky Draw Wheel Animation */}
             {game.status === 'LUCKY_DRAW' && (
               <div className="max-w-xl w-full my-auto text-center space-y-6 animate-fade-in">
                 <div className="w-20 h-20 bg-yellow-400 text-black rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-yellow-500/40">
@@ -2405,7 +2381,6 @@ export default function App() {
 
                 <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ?.question}</h2>
 
-                {/* JUMBLE PROJECTOR DISPLAY */}
                 {currQ?.type === 'jumble' && (
                   <div className="my-6 space-y-4">
                     <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Scrambled Letters:</span>
@@ -2432,7 +2407,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* WORD SEARCH PROJECTOR DISPLAY */}
                 {currQ?.type === 'wordsearch' && currQ?.imageUrl && (
                   <div className="flex flex-col items-center">
                     <MultiWordSearchCanvas
@@ -2452,7 +2426,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* DUAL PICTURES FOR GUESS WORD */}
                 {currQ?.type === 'word' && (
                   <div className="flex justify-center items-center gap-4 my-4">
                     {currQ.image1 && currQ.image2 ? (
@@ -2473,7 +2446,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Word Answer on Reveal */}
                 {game.status === 'REVEAL' && currQ?.type === 'word' && (
                   <div className="p-6 rounded-2xl bg-emerald-950/40 border-2 border-emerald-500 text-center animate-bounce-short">
                     <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold">Answer:</span>
@@ -2483,7 +2455,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Matchstick Projector View */}
                 {currQ?.type === 'matchstick' && (
                   <div className="flex flex-col items-center">
                     <MatchstickBoard
@@ -2543,7 +2514,7 @@ export default function App() {
                 {game.status === 'REVEAL' && currQ?.explanation && (
                   <div className="p-5 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
                     <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm uppercase tracking-wider mb-1">
-                      <Info className="w-4 h-4 text-indigo-400" /> Explanation / Clue Breakdown:
+                      <Info className="w-4 h-4 text-indigo-400" /> Explanation:
                     </div>
                     <p className="text-slate-200 text-base leading-relaxed">{currQ.explanation}</p>
                   </div>
