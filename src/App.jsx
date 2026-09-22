@@ -6,7 +6,8 @@ import confetti from 'canvas-confetti';
 import { 
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
-  Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon, Upload
+  Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon, Upload,
+  ArrowUp, ArrowDown, ToggleLeft, ToggleRight, Eye, EyeOff
 } from 'lucide-react';
 
 const PUZZLE_14_INITIAL = [
@@ -29,6 +30,7 @@ const INITIAL_QUESTIONS = [
   {
     id: "q_word_1",
     type: "word",
+    enabled: true,
     question: "GUESS THE WORD: Combine both pictures to form a compound word!",
     image1: "https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=400&q=80",
     image2: "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?auto=format&fit=crop&w=400&q=80",
@@ -39,6 +41,7 @@ const INITIAL_QUESTIONS = [
   {
     id: "q_match_1",
     type: "matchstick",
+    enabled: true,
     question: "Remove 2 matchsticks to leave exactly 2 squares! Tap matches to remove.",
     timeLimit: 45,
     maxMoves: 2,
@@ -52,6 +55,7 @@ const INITIAL_QUESTIONS = [
   {
     id: "q_1",
     type: "boolean",
+    enabled: true,
     question: "Sound travels faster in water than in air.",
     options: ["True", "False"],
     correctIndex: 0,
@@ -61,6 +65,7 @@ const INITIAL_QUESTIONS = [
   {
     id: "q_2",
     type: "mcq",
+    enabled: true,
     question: "Which planet in our solar system has the most moons?",
     options: ["Jupiter", "Saturn", "Uranus", "Neptune"],
     correctIndex: 1,
@@ -214,6 +219,9 @@ export default function App() {
   const [userSticks, setUserSticks] = useState(PUZZLE_14_INITIAL);
   const [stickInventory, setStickInventory] = useState(0);
 
+  // Active playable question list (filters out toggled-off questions)
+  const activeQuestions = questions.filter(q => q.enabled !== false);
+
   // Firebase Realtime DB listeners
   useEffect(() => {
     if (!roomId) return;
@@ -281,12 +289,12 @@ export default function App() {
     setSelectedAnswer(null);
     setTypedAnswer("");
     setTapCoords(null);
-    const curr = questions[game.currentIndex];
+    const curr = activeQuestions[game.currentIndex];
     if (curr && curr.type === 'matchstick') {
       setUserSticks(curr.initialSticks || PUZZLE_14_INITIAL);
       setStickInventory(0);
     }
-  }, [game.currentIndex, game.status]);
+  }, [game.currentIndex, game.status, questions]);
 
   // Handle direct file uploads and compress to lightweight Base64
   const handleFileUpload = (e, targetField) => {
@@ -357,7 +365,11 @@ export default function App() {
   };
 
   const startQuiz = () => {
-    const firstQ = questions[0];
+    if (activeQuestions.length === 0) {
+      alert("No active questions available. Please enable at least 1 question in the Question Bank.");
+      return;
+    }
+    const firstQ = activeQuestions[0];
     update(ref(db, `rooms/${roomId}/game`), {
       status: 'QUESTION',
       currentIndex: 0,
@@ -369,10 +381,10 @@ export default function App() {
 
   const nextQuestion = () => {
     const nextIdx = game.currentIndex + 1;
-    if (nextIdx >= questions.length) {
+    if (nextIdx >= activeQuestions.length) {
       update(ref(db, `rooms/${roomId}/game`), { status: 'FINAL' });
     } else {
-      const q = questions[nextIdx];
+      const q = activeQuestions[nextIdx];
       update(ref(db, `rooms/${roomId}/game`), {
         status: 'QUESTION',
         currentIndex: nextIdx,
@@ -440,6 +452,41 @@ export default function App() {
       setQTargetCoords("30,30,70,70");
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Toggle single question active/inactive state
+  const handleToggleQuestion = (id) => {
+    const updatedList = questions.map(q => {
+      if (q.id === id) {
+        const currentEnabled = q.enabled !== false;
+        return { ...q, enabled: !currentEnabled };
+      }
+      return q;
+    });
+    setQuestions(updatedList);
+    set(ref(db, `rooms/${roomId}/questions`), updatedList);
+  };
+
+  // Move Question Up
+  const handleMoveUp = (index) => {
+    if (index === 0) return;
+    const updated = [...questions];
+    const temp = updated[index - 1];
+    updated[index - 1] = updated[index];
+    updated[index] = temp;
+    setQuestions(updated);
+    set(ref(db, `rooms/${roomId}/questions`), updated);
+  };
+
+  // Move Question Down
+  const handleMoveDown = (index) => {
+    if (index === questions.length - 1) return;
+    const updated = [...questions];
+    const temp = updated[index + 1];
+    updated[index + 1] = updated[index];
+    updated[index] = temp;
+    setQuestions(updated);
+    set(ref(db, `rooms/${roomId}/questions`), updated);
   };
 
   const handleOptionChange = (idx, value) => {
@@ -527,6 +574,7 @@ export default function App() {
     const payload = {
       id: editingQId || `q_${Date.now()}`,
       type: qType,
+      enabled: true,
       question: qText.trim(),
       options: finalOptions,
       correctIndex: Number(qCorrectIndex),
@@ -543,7 +591,7 @@ export default function App() {
 
     let updatedList = [];
     if (editingQId) {
-      updatedList = questions.map(q => q.id === editingQId ? payload : q);
+      updatedList = questions.map(q => q.id === editingQId ? { ...payload, enabled: q.enabled !== false } : q);
     } else {
       updatedList = [...questions, payload];
     }
@@ -585,7 +633,7 @@ export default function App() {
 
   const submitMatchstickSolution = () => {
     if (selectedAnswer !== null || game.status !== 'QUESTION') return;
-    const curr = questions[game.currentIndex];
+    const curr = activeQuestions[game.currentIndex];
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
 
     const sortedUser = [...userSticks].sort();
@@ -619,7 +667,7 @@ export default function App() {
   const submitWordAnswer = (e) => {
     e.preventDefault();
     if (!typedAnswer.trim() || selectedAnswer !== null || game.status !== 'QUESTION') return;
-    const curr = questions[game.currentIndex];
+    const curr = activeQuestions[game.currentIndex];
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
 
     const cleanInput = typedAnswer.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -652,10 +700,10 @@ export default function App() {
   const submitAnswer = (optionIdx, coords = null) => {
     if (selectedAnswer !== null || game.status !== 'QUESTION') return;
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
-    const curr = questions[game.currentIndex];
+    const currQ = activeQuestions[game.currentIndex];
     
     let isCorrect = false;
-    if (curr.type === 'diagram' && coords && curr.target) {
+    if (currQ.type === 'diagram' && coords && currQ.target) {
       isCorrect = 
         coords.x >= currQ.target.xMin && 
         coords.x <= currQ.target.xMax && 
@@ -710,7 +758,7 @@ export default function App() {
     return list.sort((a, b) => (b.score || 0) - (a.score || 0));
   };
 
-  const currQ = questions[game.currentIndex] || questions[0];
+  const currQ = activeQuestions[game.currentIndex] || activeQuestions[0];
   const participantList = Object.values(participants);
   const currentAnswerCount = Object.keys(answers).length;
 
@@ -812,11 +860,19 @@ export default function App() {
     }
 
     if (game.status === 'QUESTION' || game.status === 'REVEAL') {
+      if (!currQ) {
+        return (
+          <div className="min-h-screen bg-slate-950 text-white p-6 flex items-center justify-center text-center">
+            <p className="text-slate-400">Waiting for next active question...</p>
+          </div>
+        );
+      }
+
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col p-4 pb-8 justify-between">
           <div>
             <div className="flex items-center justify-between py-2 border-b border-slate-800 mb-3">
-              <span className="text-xs font-semibold text-slate-400">Q {game.currentIndex + 1} of {questions.length}</span>
+              <span className="text-xs font-semibold text-slate-400">Q {game.currentIndex + 1} of {activeQuestions.length}</span>
               <div className={`px-3 py-1 rounded-full font-bold text-sm ${game.timeRemaining <= 5 ? 'bg-red-500/20 text-red-400 animate-bounce' : 'bg-slate-800 text-slate-200'}`}>
                 ⏱ {game.timeRemaining}s
               </div>
@@ -1074,12 +1130,12 @@ export default function App() {
             onClick={() => setAdminTab("builder")}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 ${adminTab === "builder" ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-white"}`}
           >
-            <Layers className="w-3.5 h-3.5" /> Question Bank ({questions.length})
+            <Layers className="w-3.5 h-3.5" /> Question Bank ({activeQuestions.length}/{questions.length} Active)
           </button>
         </div>
       </header>
 
-      {/* QUESTION BUILDER WITH LOCAL FILE UPLOAD BUTTONS */}
+      {/* QUESTION BUILDER WITH TOGGLE OPTIONS */}
       {adminTab === "builder" && (
         <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
@@ -1146,7 +1202,6 @@ export default function App() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Clue 1 Upload */}
                     <div className="space-y-1.5">
                       <label className="block text-[11px] text-slate-300 font-semibold">Image 1 (e.g. Eyes / See):</label>
                       <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
@@ -1172,7 +1227,6 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Clue 2 Upload */}
                     <div className="space-y-1.5">
                       <label className="block text-[11px] text-slate-300 font-semibold">Image 2 (e.g. Saw):</label>
                       <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
@@ -1215,9 +1269,6 @@ export default function App() {
                     onChange={(e) => setQAcceptedAnswers(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none text-xs font-mono"
                   />
-                  <p className="text-[10px] text-slate-500">
-                    Matches are case-insensitive and ignore punctuation/spacing.
-                  </p>
                 </div>
               )}
 
@@ -1397,111 +1448,152 @@ export default function App() {
             </form>
           </div>
 
-          {/* Question List (Right Column) */}
+          {/* Question List (Right Column with Toggles and Reordering) */}
           <div className="lg:col-span-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold">Quiz Bank Questions ({questions.length})</h2>
-              <span className="text-xs text-slate-500">Live synced with participants</span>
+              <div>
+                <h2 className="text-lg font-bold">Quiz Bank Questions ({questions.length})</h2>
+                <span className="text-xs text-indigo-400 font-semibold">{activeQuestions.length} Active in current quiz</span>
+              </div>
+              <span className="text-xs text-slate-500">Toggle or reorder items</span>
             </div>
 
             <div className="space-y-3 max-h-[78vh] overflow-y-auto pr-2">
-              {questions.map((q, idx) => (
-                <div key={q.id || idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex gap-3 items-start hover:border-slate-700 transition">
-                  <span className="w-7 h-7 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black flex items-center justify-center text-indigo-400 flex-shrink-0">
-                    {idx + 1}
-                  </span>
-
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                        {q.type} • {q.timeLimit}s
+              {questions.map((q, idx) => {
+                const isEnabled = q.enabled !== false;
+                return (
+                  <div 
+                    key={q.id || idx} 
+                    className={`border rounded-2xl p-4 flex gap-3 items-start transition-all ${isEnabled ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-slate-950/60 border-slate-850 opacity-60'}`}
+                  >
+                    {/* Reordering Controls */}
+                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => handleMoveUp(idx)}
+                        disabled={idx === 0}
+                        className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20"
+                        title="Move Up"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <span className={`w-7 h-7 rounded-xl border text-xs font-black flex items-center justify-center ${isEnabled ? 'bg-slate-800 border-slate-700 text-indigo-400' : 'bg-slate-900 border-slate-800 text-slate-600'}`}>
+                        {idx + 1}
                       </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleEdit(q)}
-                          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition"
-                          title="Edit"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(q.id)}
-                          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleMoveDown(idx)}
+                        disabled={idx === questions.length - 1}
+                        className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20"
+                        title="Move Down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
                     </div>
 
-                    <p className="font-semibold text-sm leading-snug">{q.question}</p>
-
-                    {/* Word Question Clues Display */}
-                    {q.type === 'word' && (
-                      <div className="space-y-1.5">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          {q.image1 && (
-                            <div className="h-14 w-14 bg-white rounded-lg p-1 border border-slate-700 flex items-center justify-center">
-                              <img src={q.image1} alt="1" className="max-h-full object-contain" />
-                            </div>
-                          )}
-                          {q.image1 && q.image2 && <span className="text-indigo-400 font-bold text-sm">+</span>}
-                          {q.image2 && (
-                            <div className="h-14 w-14 bg-white rounded-lg p-1 border border-slate-700 flex items-center justify-center">
-                              <img src={q.image2} alt="2" className="max-h-full object-contain" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-xs text-indigo-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800">
-                          <b>Accepted:</b> {Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : ""}
-                        </div>
-                      </div>
-                    )}
-
-                    {q.type === 'matchstick' && (
-                      <div className="p-2 bg-black/40 rounded-xl border border-slate-800 flex items-center gap-3">
-                        <div className="w-16 h-16 flex-shrink-0">
-                          <MatchstickBoard currentSticks={q.initialSticks || PUZZLE_14_INITIAL} isInteractive={false} />
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          <p className="text-amber-400 font-bold">Interactive Matchstick Board</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {q.type === 'boolean' && (
-                      <div className="flex items-center gap-2 pt-1 text-xs">
-                        <span className="text-slate-400">Answer:</span>
-                        <span className="px-2.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold">
-                          {q.correctIndex === 0 ? "True" : "False"}
-                        </span>
-                      </div>
-                    )}
-
-                    {q.type === 'mcq' && (
-                      <div className="grid grid-cols-2 gap-1.5 pt-1">
-                        {q.options.map((opt, oIdx) => (
-                          <span
-                            key={oIdx}
-                            className={`text-xs px-2.5 py-1 rounded-lg border truncate flex items-center gap-1.5 ${oIdx === q.correctIndex ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 font-bold' : 'bg-slate-950/40 border-slate-800 text-slate-400'}`}
-                          >
-                            <span className="text-[10px] opacity-60">{String.fromCharCode(65 + oIdx)}.</span>
-                            <span className="truncate">{opt}</span>
-                            {oIdx === q.correctIndex && <Check className="w-3 h-3 text-emerald-400 ml-auto flex-shrink-0" />}
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                            {q.type} • {q.timeLimit}s
                           </span>
-                        ))}
-                      </div>
-                    )}
 
-                    {q.explanation && (
-                      <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-start gap-1.5">
-                        <Info className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
-                        <span><b className="text-slate-300">Reason:</b> {q.explanation}</span>
+                          {/* TOGGLE ACTIVE/INACTIVE BUTTON */}
+                          <button
+                            onClick={() => handleToggleQuestion(q.id)}
+                            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition border ${isEnabled ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
+                            title="Toggle whether this question appears during the quiz"
+                          >
+                            {isEnabled ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <EyeOff className="w-3 h-3 text-slate-400" />}
+                            {isEnabled ? 'Active' : 'Inactive'}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEdit(q)}
+                            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(q.id)}
+                            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    )}
+
+                      <p className={`font-semibold text-sm leading-snug ${isEnabled ? 'text-slate-200' : 'text-slate-500'}`}>{q.question}</p>
+
+                      {/* Word Question Clues Display */}
+                      {q.type === 'word' && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            {q.image1 && (
+                              <div className="h-12 w-12 bg-white rounded-lg p-1 border border-slate-700 flex items-center justify-center">
+                                <img src={q.image1} alt="1" className="max-h-full object-contain" />
+                              </div>
+                            )}
+                            {q.image1 && q.image2 && <span className="text-indigo-400 font-bold text-xs">+</span>}
+                            {q.image2 && (
+                              <div className="h-12 w-12 bg-white rounded-lg p-1 border border-slate-700 flex items-center justify-center">
+                                <img src={q.image2} alt="2" className="max-h-full object-contain" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-indigo-300 bg-slate-950/60 p-1.5 rounded-lg border border-slate-800">
+                            <b>Accepted:</b> {Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : ""}
+                          </div>
+                        </div>
+                      )}
+
+                      {q.type === 'matchstick' && (
+                        <div className="p-2 bg-black/40 rounded-xl border border-slate-800 flex items-center gap-3">
+                          <div className="w-14 h-14 flex-shrink-0">
+                            <MatchstickBoard currentSticks={q.initialSticks || PUZZLE_14_INITIAL} isInteractive={false} />
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            <p className="text-amber-400 font-bold">Interactive Matchstick Board</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {q.type === 'boolean' && (
+                        <div className="flex items-center gap-2 pt-1 text-xs">
+                          <span className="text-slate-400">Answer:</span>
+                          <span className="px-2.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold">
+                            {q.correctIndex === 0 ? "True" : "False"}
+                          </span>
+                        </div>
+                      )}
+
+                      {q.type === 'mcq' && (
+                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                          {q.options.map((opt, oIdx) => (
+                            <span
+                              key={oIdx}
+                              className={`text-[11px] px-2 py-0.5 rounded-lg border truncate flex items-center gap-1.5 ${oIdx === q.correctIndex ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 font-bold' : 'bg-slate-950/40 border-slate-800 text-slate-400'}`}
+                            >
+                              <span className="text-[9px] opacity-60">{String.fromCharCode(65 + oIdx)}.</span>
+                              <span className="truncate">{opt}</span>
+                              {oIdx === q.correctIndex && <Check className="w-3 h-3 text-emerald-400 ml-auto flex-shrink-0" />}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {q.explanation && (
+                        <div className="text-[10px] text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-start gap-1.5">
+                          <Info className="w-3 h-3 text-indigo-400 flex-shrink-0 mt-0.5" />
+                          <span><b className="text-slate-300">Reason:</b> {q.explanation}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1520,6 +1612,10 @@ export default function App() {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">Submissions:</span>
                   <span className="font-bold text-amber-400">{currentAnswerCount}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Active Questions:</span>
+                  <span className="font-bold text-indigo-400">{activeQuestions.length}</span>
                 </div>
                 <div className="flex justify-between text-sm pt-2 border-t border-slate-700/50">
                   <span className="text-slate-400">Mode:</span>
@@ -1541,7 +1637,7 @@ export default function App() {
                     onClick={startQuiz}
                     className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
                   >
-                    <Play className="w-4 h-4 fill-current" /> Start Quiz
+                    <Play className="w-4 h-4 fill-current" /> Start Quiz ({activeQuestions.length} Qs)
                   </button>
                 )}
 
@@ -1625,16 +1721,16 @@ export default function App() {
             {(game.status === 'QUESTION' || game.status === 'REVEAL') && (
               <div className="max-w-3xl w-full my-auto space-y-6 text-center">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-                  <span className="text-lg font-bold text-indigo-400">Question {game.currentIndex + 1} of {questions.length}</span>
+                  <span className="text-lg font-bold text-indigo-400">Question {game.currentIndex + 1} of {activeQuestions.length}</span>
                   <div className="flex items-center gap-2 text-3xl font-black text-amber-400">
                     <Clock className="w-8 h-8" /> {game.timeRemaining}s
                   </div>
                 </div>
 
-                <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ.question}</h2>
+                <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ?.question}</h2>
 
                 {/* Projector: Dual Pictures for Guess the Word */}
-                {currQ.type === 'word' && (
+                {currQ?.type === 'word' && (
                   <div className="flex justify-center items-center gap-4 my-4">
                     {currQ.image1 && currQ.image2 ? (
                       <>
@@ -1646,7 +1742,7 @@ export default function App() {
                           <img src={currQ.image2} alt="Clue 2" className="max-h-full object-contain" />
                         </div>
                       </>
-                    ) : currQ.imageUrl ? (
+                    ) : currQ?.imageUrl ? (
                       <div className="max-h-80 overflow-hidden rounded-2xl border border-slate-800 flex justify-center bg-black">
                         <img src={currQ.imageUrl} alt="Clue" className="max-h-80 object-contain" />
                       </div>
@@ -1655,7 +1751,7 @@ export default function App() {
                 )}
 
                 {/* Word Answer on Reveal */}
-                {game.status === 'REVEAL' && currQ.type === 'word' && (
+                {game.status === 'REVEAL' && currQ?.type === 'word' && (
                   <div className="p-6 rounded-2xl bg-emerald-950/40 border-2 border-emerald-500 text-center animate-bounce-short">
                     <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold">Answer:</span>
                     <p className="text-4xl font-black text-white mt-1 tracking-wider uppercase">
@@ -1665,7 +1761,7 @@ export default function App() {
                 )}
 
                 {/* Matchstick Projector View */}
-                {currQ.type === 'matchstick' && (
+                {currQ?.type === 'matchstick' && (
                   <div className="flex flex-col items-center">
                     <MatchstickBoard
                       currentSticks={game.status === 'REVEAL' ? (currQ.validSolutions?.[0] || PUZZLE_14_SOLUTION) : (currQ.initialSticks || PUZZLE_14_INITIAL)}
@@ -1679,7 +1775,7 @@ export default function App() {
                   </div>
                 )}
 
-                {currQ.type === 'boolean' && (
+                {currQ?.type === 'boolean' && (
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     {currQ.options.map((opt, i) => {
                       let cardStyle = "bg-slate-900 border-slate-800 text-slate-300";
@@ -1700,7 +1796,7 @@ export default function App() {
                   </div>
                 )}
 
-                {currQ.type === 'mcq' && (
+                {currQ?.type === 'mcq' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     {currQ.options.map((opt, i) => {
                       let cardStyle = "bg-slate-900 border-slate-800 text-slate-300";
@@ -1721,7 +1817,7 @@ export default function App() {
                   </div>
                 )}
 
-                {game.status === 'REVEAL' && currQ.explanation && (
+                {game.status === 'REVEAL' && currQ?.explanation && (
                   <div className="p-5 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
                     <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm uppercase tracking-wider mb-1">
                       <Info className="w-4 h-4 text-indigo-400" /> Explanation / Clue Breakdown:
