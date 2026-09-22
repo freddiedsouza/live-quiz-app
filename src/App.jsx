@@ -7,7 +7,7 @@ import {
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
   Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon, Upload,
-  ArrowUp, ArrowDown, EyeOff, Search, CheckCheck
+  ArrowUp, ArrowDown, EyeOff, Search, Gift, Dices
 } from 'lucide-react';
 
 const PUZZLE_14_INITIAL = [
@@ -183,7 +183,6 @@ function MatchstickBoard({ currentSticks, onStickToggle, isInteractive = true, s
   );
 }
 
-// Multi-Word Interactive Canvas
 function MultiWordSearchCanvas({ 
   imageUrl, 
   persistedHighlights = [], 
@@ -254,7 +253,6 @@ function MultiWordSearchCanvas({
       />
 
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        {/* Reveal Solutions */}
         {revealSolutions.map((item, idx) => item.highlight && (
           <g key={`sol_${idx}`}>
             <line
@@ -281,7 +279,6 @@ function MultiWordSearchCanvas({
           </g>
         ))}
 
-        {/* Found / Persisted Highlights */}
         {persistedHighlights.map((hl, idx) => (
           <line
             key={`found_${idx}`}
@@ -296,7 +293,6 @@ function MultiWordSearchCanvas({
           />
         ))}
 
-        {/* Active Live Drag Line */}
         {currentDraftLine && (
           <line
             x1={`${currentDraftLine.x1}%`}
@@ -337,7 +333,7 @@ export default function App() {
   const [qExplanation, setQExplanation] = useState("");
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState("seesaw, see saw");
   
-  // Word Search Multi-word state in Builder
+  // Word Search Multi-word state
   const [qTargetWords, setQTargetWords] = useState([
     { id: "w_1", word: "SUN", highlight: { x1: 20, y1: 25, x2: 45, y2: 25 } },
     { id: "w_2", word: "MOON", highlight: { x1: 20, y1: 50, x2: 60, y2: 50 } }
@@ -361,6 +357,11 @@ export default function App() {
 
   const [participants, setParticipants] = useState({});
   const [answers, setAnswers] = useState({});
+  const [luckyWinner, setLuckyWinner] = useState(null);
+
+  // Lucky Draw animation state
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [animatedName, setAnimatedName] = useState("");
 
   // Participant local state
   const [playerName, setPlayerName] = useState("");
@@ -372,13 +373,12 @@ export default function App() {
   // Participant interactive states
   const [userSticks, setUserSticks] = useState(PUZZLE_14_INITIAL);
   const [stickInventory, setStickInventory] = useState(0);
-
-  // Participant Multi-word Search local states
   const [foundWordIds, setFoundWordIds] = useState([]);
   const [persistedLines, setPersistedLines] = useState([]);
   const [participantDraftLine, setParticipantDraftLine] = useState(null);
 
   const activeQuestions = questions.filter(q => q.enabled !== false);
+  const participantList = Object.values(participants);
 
   // Firebase Realtime DB listeners
   useEffect(() => {
@@ -388,6 +388,7 @@ export default function App() {
     const partRef = ref(db, `rooms/${roomId}/participants`);
     const ansRef = ref(db, `rooms/${roomId}/answers`);
     const qRef = ref(db, `rooms/${roomId}/questions`);
+    const winnerRef = ref(db, `rooms/${roomId}/luckyWinner`);
 
     const unsubGame = onValue(gameRef, (snapshot) => {
       const val = snapshot.val();
@@ -409,11 +410,16 @@ export default function App() {
       }
     });
 
+    const unsubWinner = onValue(winnerRef, (snapshot) => {
+      setLuckyWinner(snapshot.val() || null);
+    });
+
     return () => {
       unsubGame();
       unsubPart();
       unsubAns();
       unsubQ();
+      unsubWinner();
     };
   }, [roomId]);
 
@@ -438,12 +444,11 @@ export default function App() {
   }, [isAdminAuthed, game.status, roomId]);
 
   useEffect(() => {
-    if (game.status === 'FINAL') {
-      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+    if (game.status === 'FINAL' || game.status === 'LUCKY_DRAW') {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
-  }, [game.status]);
+  }, [game.status, luckyWinner]);
 
-  // Reset round state on question change
   useEffect(() => {
     setSelectedAnswer(null);
     setTypedAnswer("");
@@ -539,6 +544,7 @@ export default function App() {
       questionStartTime: Date.now()
     });
     set(ref(db, `rooms/${roomId}/answers`), {});
+    set(ref(db, `rooms/${roomId}/luckyWinner`), null);
   };
 
   const nextQuestion = () => {
@@ -561,6 +567,38 @@ export default function App() {
     update(ref(db, `rooms/${roomId}/game`), { status: 'LEADERBOARD' });
   };
 
+  // Run the Lucky Draw Wheel Randomizer
+  const triggerLuckyDraw = () => {
+    if (participantList.length === 0) {
+      alert("No participants have joined yet to pick a winner from!");
+      return;
+    }
+
+    update(ref(db, `rooms/${roomId}/game`), { status: 'LUCKY_DRAW' });
+    set(ref(db, `rooms/${roomId}/luckyWinner`), null);
+    setIsSpinning(true);
+
+    const names = participantList.map(p => p.name);
+    let counter = 0;
+    let speed = 60;
+
+    const interval = setInterval(() => {
+      const randomPick = names[Math.floor(Math.random() * names.length)];
+      setAnimatedName(randomPick);
+      counter++;
+
+      if (counter > 30) {
+        clearInterval(interval);
+        // Final decisive winner
+        const chosen = participantList[Math.floor(Math.random() * participantList.length)];
+        setAnimatedName(chosen.name);
+        setIsSpinning(false);
+        set(ref(db, `rooms/${roomId}/luckyWinner`), chosen);
+        confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 } });
+      }
+    }, speed);
+  };
+
   const resetRoom = () => {
     set(ref(db, `rooms/${roomId}/game`), {
       status: 'LOBBY',
@@ -571,6 +609,7 @@ export default function App() {
     });
     set(ref(db, `rooms/${roomId}/participants`), {});
     set(ref(db, `rooms/${roomId}/answers`), {});
+    set(ref(db, `rooms/${roomId}/luckyWinner`), null);
   };
 
   const resetForm = () => {
@@ -650,7 +689,6 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/questions`), updated);
   };
 
-  // Word Search Multi-words management in Builder
   const handleAddWordToBuilder = () => {
     if (!newWordInput.trim()) return;
     const newWordObj = {
@@ -768,9 +806,8 @@ export default function App() {
     if (!curr || !curr.targetWords) return;
 
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
-    const tol = 16; // 16% coordinate tolerance margin for finger touches
+    const tol = 16;
 
-    // Check line against uncollected target words
     const hitWord = curr.targetWords.find(targetObj => {
       if (!targetObj.highlight || foundWordIds.includes(targetObj.id)) return false;
       const t = targetObj.highlight;
@@ -792,14 +829,12 @@ export default function App() {
       setFoundWordIds(updatedFound);
       setPersistedLines(updatedLines);
 
-      // Instantly award points for each word found
       const currentScore = participants[participantId]?.score || 0;
       const pts = (curr.pointsPerWord || 100) + Math.floor(game.timeRemaining * 2);
       update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
         score: currentScore + pts
       });
 
-      // Update answer log
       set(ref(db, `rooms/${roomId}/answers/${participantId}`), {
         answer: `${updatedFound.length} of ${curr.targetWords.length} words found`,
         isCorrect: true,
@@ -943,7 +978,6 @@ export default function App() {
   };
 
   const currQ = activeQuestions[game.currentIndex] || activeQuestions[0];
-  const participantList = Object.values(participants);
   const currentAnswerCount = Object.keys(answers).length;
 
   if (!role) {
@@ -1027,6 +1061,45 @@ export default function App() {
       );
     }
 
+    // PARTICIPANT LUCKY DRAW SCREEN
+    if (game.status === 'LUCKY_DRAW') {
+      const isWinner = luckyWinner && luckyWinner.name?.toLowerCase().trim() === playerName?.toLowerCase().trim();
+
+      return (
+        <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col justify-center items-center text-center">
+          {luckyWinner ? (
+            isWinner ? (
+              <div className="space-y-4 animate-bounce-short">
+                <div className="w-20 h-20 bg-yellow-400 text-black rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-yellow-500/50">
+                  <Gift className="w-10 h-10 animate-pulse" />
+                </div>
+                <h1 className="text-3xl font-black text-yellow-400">🎉 CONGRATULATIONS!</h1>
+                <p className="text-xl font-bold">You are the Lucky Draw Winner!</p>
+                <div className="p-4 bg-yellow-950/60 border border-yellow-500/40 rounded-2xl">
+                  <p className="text-xs text-yellow-200">Go claim your prize from the quiz host!</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Trophy className="w-16 h-16 text-yellow-400 mx-auto" />
+                <h2 className="text-2xl font-bold">Lucky Draw Winner</h2>
+                <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl">
+                  <span className="text-xs text-slate-400 uppercase font-bold">The Winner is:</span>
+                  <p className="text-3xl font-black text-amber-400 mt-1">{luckyWinner.name}</p>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="space-y-4">
+              <Dices className="w-16 h-16 text-indigo-400 mx-auto animate-spin" />
+              <h2 className="text-2xl font-black">Drawing a Lucky Winner...</h2>
+              <p className="text-sm text-slate-400">Watch the main screen!</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     if (game.status === 'LOBBY') {
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center">
@@ -1067,7 +1140,6 @@ export default function App() {
             {/* MULTI-WORD SEARCH PUZZLE INTERACTION */}
             {currQ.type === 'wordsearch' && currQ.imageUrl && (
               <div className="space-y-3 flex flex-col items-center">
-                {/* Checklist of words to find */}
                 <div className="w-full bg-slate-900 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Words to Find ({foundWordIds.length} / {currQ.targetWords?.length || 0}):</span>
@@ -1429,7 +1501,6 @@ export default function App() {
                     <Search className="w-4 h-4 text-indigo-400" /> Words to Find & Position Calibration:
                   </div>
 
-                  {/* Add New Word */}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -1447,7 +1518,6 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* Words List with Active Word Selector */}
                   <div className="space-y-1.5">
                     <label className="block text-[11px] text-slate-400 font-semibold">
                       Click a word below, then drag across its letters on the image to set its line:
@@ -1826,7 +1896,6 @@ export default function App() {
 
                       <p className={`font-semibold text-sm leading-snug ${isEnabled ? 'text-slate-200' : 'text-slate-500'}`}>{q.question}</p>
 
-                      {/* Multi-Word Search summary */}
                       {q.type === 'wordsearch' && (
                         <div className="flex items-center gap-3">
                           {q.imageUrl && (
@@ -1847,7 +1916,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Word Question Clues */}
                       {q.type === 'word' && (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2">
@@ -1988,6 +2056,16 @@ export default function App() {
                   </button>
                 )}
 
+                {/* LUCKY DRAW BUTTON */}
+                {(game.status === 'FINAL' || game.status === 'LEADERBOARD') && (
+                  <button
+                    onClick={triggerLuckyDraw}
+                    className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98]"
+                  >
+                    <Gift className="w-5 h-5 fill-current" /> Run Lucky Draw ({participantList.length})
+                  </button>
+                )}
+
                 <button
                   onClick={resetRoom}
                   className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg flex items-center justify-center gap-2"
@@ -2035,6 +2113,43 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* LUCKY DRAW PROJECTOR WHEEL / ANNOUNCEMENT */}
+            {game.status === 'LUCKY_DRAW' && (
+              <div className="max-w-xl w-full my-auto text-center space-y-6 animate-fade-in">
+                <div className="w-20 h-20 bg-yellow-400 text-black rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-yellow-500/40">
+                  <Gift className="w-10 h-10 animate-bounce" />
+                </div>
+
+                <div>
+                  <h1 className="text-4xl font-black text-white">🎁 Live Lucky Draw!</h1>
+                  <p className="text-slate-400 text-sm mt-1">Randomly selecting 1 winner from all {participantList.length} connected players</p>
+                </div>
+
+                {/* Animated Roller Box */}
+                <div className="p-8 bg-slate-900 border-2 border-yellow-500/60 rounded-3xl shadow-2xl relative overflow-hidden">
+                  <div className="text-xs uppercase tracking-widest text-amber-400 font-bold mb-2">
+                    {isSpinning ? "SHUFFLING NAMES..." : "🎉 WINNER SELECTED 🎉"}
+                  </div>
+
+                  <p className={`text-4xl md:text-5xl font-black tracking-wide ${isSpinning ? 'text-indigo-300 animate-pulse' : 'text-yellow-400 scale-110 transition-transform'}`}>
+                    {animatedName || "..."}
+                  </p>
+                </div>
+
+                {!isSpinning && luckyWinner && (
+                  <div className="space-y-3">
+                    <p className="text-slate-300 text-sm">Congratulations <b className="text-white text-base">{luckyWinner.name}</b> on winning the session prize!</p>
+                    <button
+                      onClick={triggerLuckyDraw}
+                      className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition inline-flex items-center gap-2"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Re-spin Lucky Draw
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2189,6 +2304,18 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                {/* LUCKY DRAW BUTTON DIRECTLY ON FINAL SCREEN */}
+                {game.status === 'FINAL' && (
+                  <div className="pt-4 border-t border-slate-800">
+                    <button
+                      onClick={triggerLuckyDraw}
+                      className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-3 text-lg shadow-xl shadow-yellow-500/20 transition active:scale-[0.98]"
+                    >
+                      <Gift className="w-6 h-6 fill-current" /> Run Lucky Draw ({participantList.length} Connected Players)
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
