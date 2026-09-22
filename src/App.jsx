@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { 
   Users, Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
-  Trash2, Edit3, HelpCircle, Layers, CheckSquare
+  Trash2, Edit3, Layers, Check, X, Image as ImageIcon
 } from 'lucide-react';
 
 const INITIAL_QUESTIONS = [
@@ -32,7 +32,7 @@ const INITIAL_QUESTIONS = [
     question: "Spot the hidden Queen Bee in the honeycomb pattern! (Tap on the image)",
     imageUrl: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=800&q=80",
     target: { xMin: 40, xMax: 60, yMin: 40, yMax: 60 },
-    options: ["Tap the spot on screen"],
+    options: ["Visual Target"],
     correctIndex: 0,
     timeLimit: 30
   },
@@ -47,28 +47,27 @@ const INITIAL_QUESTIONS = [
 ];
 
 export default function App() {
-  const [role, setRole] = useState(null); // 'admin' | 'participant'
+  const [role, setRole] = useState(null);
   const [roomId, setRoomId] = useState("QUIZ1");
 
-  // Admin authentication and tabs
+  // Admin states
   const [adminPass, setAdminPass] = useState("");
   const [isAdminAuthed, setIsAdminAuthed] = useState(false);
-  const [adminTab, setAdminTab] = useState("live"); // "live" | "builder"
+  const [adminTab, setAdminTab] = useState("live");
   const [questions, setQuestions] = useState(INITIAL_QUESTIONS);
 
-  // Question editor form state
+  // Question Form Builder state
   const [editingQId, setEditingQId] = useState(null);
-  const [formData, setFormData] = useState({
-    type: "mcq",
-    question: "",
-    options: ["", "", "", ""],
-    correctIndex: 0,
-    timeLimit: 20,
-    imageUrl: "",
-    targetCoords: "30,30,70,70" // xMin,yMin,xMax,yMax for diagrams
-  });
+  const [qType, setQType] = useState("mcq");
+  const [qText, setQText] = useState("");
+  const [qOptions, setQOptions] = useState(["", "", "", ""]);
+  const [qCorrectIndex, setQCorrectIndex] = useState(0);
+  const [qTimeLimit, setQTimeLimit] = useState(20);
+  const [qImageUrl, setQImageUrl] = useState("");
+  const [qTargetCoords, setQTargetCoords] = useState("30,30,70,70");
+  const [statusMessage, setStatusMessage] = useState("");
 
-  // Room / Game synchronized state
+  // Room / Game state
   const [game, setGame] = useState({
     status: 'LOBBY',
     mode: 'INDIVIDUAL',
@@ -87,7 +86,7 @@ export default function App() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [tapCoords, setTapCoords] = useState(null);
 
-  // Sync with Firebase Realtime Database
+  // Sync with Firebase
   useEffect(() => {
     if (!roomId) return;
 
@@ -144,14 +143,12 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isAdminAuthed, game.status, roomId]);
 
-  // Confetti on final podium
   useEffect(() => {
     if (game.status === 'FINAL') {
       confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
     }
   }, [game.status]);
 
-  // Reset local answer selection when question changes
   useEffect(() => {
     setSelectedAnswer(null);
     setTapCoords(null);
@@ -227,100 +224,126 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/answers`), {});
   };
 
-  // Question Management Functions
-  const resetQuestionForm = () => {
+  // Question Form Management
+  const resetForm = () => {
     setEditingQId(null);
-    setFormData({
-      type: "mcq",
-      question: "",
-      options: ["", "", "", ""],
-      correctIndex: 0,
-      timeLimit: 20,
-      imageUrl: "",
-      targetCoords: "30,30,70,70"
-    });
+    setQType("mcq");
+    setQText("");
+    setQOptions(["", "", "", ""]);
+    setQCorrectIndex(0);
+    setQTimeLimit(20);
+    setQImageUrl("");
+    setQTargetCoords("30,30,70,70");
   };
 
-  const handleEditClick = (q) => {
+  const handleEdit = (q) => {
     setEditingQId(q.id);
-    let coordsStr = "30,30,70,70";
+    setQType(q.type || "mcq");
+    setQText(q.question || "");
+    setQOptions(q.options && q.options.length ? [...q.options] : ["", "", "", ""]);
+    setQCorrectIndex(q.correctIndex || 0);
+    setQTimeLimit(q.timeLimit || 20);
+    setQImageUrl(q.imageUrl || "");
     if (q.target) {
-      coordsStr = `${q.target.xMin},${q.target.yMin},${q.target.xMax},${q.target.yMax}`;
+      setQTargetCoords(`${q.target.xMin},${q.target.yMin},${q.target.xMax},${q.target.yMax}`);
+    } else {
+      setQTargetCoords("30,30,70,70");
     }
-    setFormData({
-      type: q.type,
-      question: q.question,
-      options: q.options && q.options.length ? q.options : ["", "", "", ""],
-      correctIndex: q.correctIndex || 0,
-      timeLimit: q.timeLimit || 20,
-      imageUrl: q.imageUrl || "",
-      targetCoords: coordsStr
-    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOptionChange = (idx, value) => {
+    const updated = [...qOptions];
+    updated[idx] = value;
+    setQOptions(updated);
+  };
+
+  const addOptionField = () => {
+    if (qOptions.length < 6) {
+      setQOptions([...qOptions, ""]);
+    }
+  };
+
+  const removeOptionField = (idx) => {
+    if (qOptions.length > 2) {
+      const updated = qOptions.filter((_, i) => i !== idx);
+      setQOptions(updated);
+      if (qCorrectIndex >= updated.length) {
+        setQCorrectIndex(0);
+      }
+    }
   };
 
   const handleSaveQuestion = (e) => {
     e.preventDefault();
-    if (!formData.question.trim()) {
-      alert("Question title cannot be blank");
+    if (!qText.trim()) {
+      setStatusMessage("Error: Question prompt cannot be empty.");
       return;
     }
 
-    let finalOptions = formData.options;
-    if (formData.type === 'boolean') {
+    let finalOptions = qOptions;
+    if (qType === 'boolean') {
       finalOptions = ["True", "False"];
-    } else if (formData.type === 'diagram') {
-      finalOptions = ["Visual Target Point"];
+    } else if (qType === 'diagram') {
+      finalOptions = ["Target Spot on Image"];
+    } else {
+      const cleanOptions = qOptions.map(opt => opt.trim());
+      if (cleanOptions.some(opt => opt === "")) {
+        setStatusMessage("Error: All choice options must be filled.");
+        return;
+      }
+      finalOptions = cleanOptions;
     }
 
     let parsedTarget = null;
-    if (formData.type === 'diagram') {
-      const parts = formData.targetCoords.split(',').map(n => Number(n.trim()));
+    if (qType === 'diagram') {
+      const nums = qTargetCoords.split(',').map(n => Number(n.trim()));
       parsedTarget = {
-        xMin: parts[0] || 25,
-        yMin: parts[1] || 25,
-        xMax: parts[2] || 75,
-        yMax: parts[3] || 75
+        xMin: nums[0] || 25,
+        yMin: nums[1] || 25,
+        xMax: nums[2] || 75,
+        yMax: nums[3] || 75
       };
     }
 
     const payload = {
       id: editingQId || `q_${Date.now()}`,
-      type: formData.type,
-      question: formData.question.trim(),
+      type: qType,
+      question: qText.trim(),
       options: finalOptions,
-      correctIndex: Number(formData.correctIndex),
-      timeLimit: Number(formData.timeLimit) || 20,
-      imageUrl: formData.imageUrl.trim() || null,
+      correctIndex: Number(qCorrectIndex),
+      timeLimit: Number(qTimeLimit) || 20,
+      imageUrl: qImageUrl.trim() || null,
       target: parsedTarget
     };
 
-    let updated = [];
+    let updatedList = [];
     if (editingQId) {
-      updated = questions.map(q => q.id === editingQId ? payload : q);
+      updatedList = questions.map(q => q.id === editingQId ? payload : q);
     } else {
-      updated = [...questions, payload];
+      updatedList = [...questions, payload];
     }
 
-    setQuestions(updated);
-    set(ref(db, `rooms/${roomId}/questions`), updated);
-    resetQuestionForm();
-    alert("Question saved successfully to the bank!");
+    setQuestions(updatedList);
+    set(ref(db, `rooms/${roomId}/questions`), updatedList);
+    resetForm();
+    setStatusMessage("Question successfully saved and synced to live quiz!");
+    setTimeout(() => setStatusMessage(""), 4000);
   };
 
-  const handleDeleteQuestion = (id) => {
+  const handleDelete = (id) => {
     if (questions.length <= 1) {
-      alert("You need at least 1 question in the quiz bank.");
+      alert("At least 1 question is required in the quiz.");
       return;
     }
-    if (confirm("Are you sure you want to delete this question?")) {
-      const updated = questions.filter(q => q.id !== id);
-      setQuestions(updated);
-      set(ref(db, `rooms/${roomId}/questions`), updated);
+    if (confirm("Delete this question from the quiz?")) {
+      const updatedList = questions.filter(q => q.id !== id);
+      setQuestions(updatedList);
+      set(ref(db, `rooms/${roomId}/questions`), updatedList);
     }
   };
 
-  // Participant Operations
+  // Participant actions
   const handleJoin = (e) => {
     e.preventDefault();
     if (!playerName.trim()) return;
@@ -418,7 +441,7 @@ export default function App() {
     );
   }
 
-  // View: Participant Portal (Mobile phone)
+  // View: Participant Portal (Mobile)
   if (role === 'participant') {
     if (!hasJoined) {
       return (
@@ -580,7 +603,7 @@ export default function App() {
     );
   }
 
-  // View: Admin Passcode Login
+  // View: Admin Login
   if (!isAdminAuthed) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -610,10 +633,10 @@ export default function App() {
 
   const currentJoinUrl = window.location.origin;
 
-  // View: Admin Dashboard (Live Session & Question Bank Tabs)
+  // View: Admin Dashboard
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Top Navigation Bar */}
+      {/* Top Header */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl">
@@ -641,131 +664,178 @@ export default function App() {
         </div>
       </header>
 
-      {/* TAB 1: QUESTION BANK BUILDER */}
+      {/* QUESTION BANK BUILDER */}
       {adminTab === "builder" && (
-        <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Question Form */}
-          <div className="md:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 h-fit space-y-4">
+        <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Creator Form */}
+          <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h2 className="text-lg font-bold flex items-center gap-2">
+              <h2 className="text-lg font-bold flex items-center gap-2 text-white">
                 {editingQId ? <Edit3 className="w-5 h-5 text-amber-400" /> : <Plus className="w-5 h-5 text-indigo-400" />}
                 {editingQId ? "Edit Question" : "Create New Question"}
               </h2>
               {editingQId && (
-                <button onClick={resetQuestionForm} className="text-xs text-slate-400 hover:text-white">
+                <button 
+                  onClick={resetForm} 
+                  className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg text-slate-300"
+                >
                   Cancel Edit
                 </button>
               )}
             </div>
 
+            {statusMessage && (
+              <div className={`p-3 rounded-xl text-xs font-semibold ${statusMessage.startsWith('Error') ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}`}>
+                {statusMessage}
+              </div>
+            )}
+
             <form onSubmit={handleSaveQuestion} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Question Category / Format</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none"
-                >
-                  <option value="mcq">Multiple Choice (MCQ / IQ / Matchstick)</option>
-                  <option value="boolean">True / False</option>
-                  <option value="diagram">Find Animal / Diagram Spot Challenge</option>
-                </select>
+                <label className="block text-slate-400 font-semibold mb-1">Format</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'mcq', label: 'Multiple Choice' },
+                    { id: 'boolean', label: 'True / False' },
+                    { id: 'diagram', label: 'Spot On Diagram' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setQType(tab.id)}
+                      className={`py-2 rounded-xl border font-bold text-center transition ${qType === tab.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-850 border-slate-750 text-slate-400 hover:text-white'}`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Question Statement</label>
+                <label className="block text-slate-400 font-semibold mb-1">Question Prompt</label>
                 <textarea
                   required
                   rows={2}
                   placeholder="e.g. Which country won the 2022 World Cup?"
-                  value={formData.question}
-                  onChange={(e) => setFormData({ ...formData, question: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none"
+                  value={qText}
+                  onChange={(e) => setQText(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
 
-              {/* Optional Image for IQ/Matchstick or Diagram */}
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional / Diagram target)</label>
+                <label className="block text-slate-400 font-semibold mb-1">Image URL (Optional for MCQ / Required for Diagram)</label>
                 <input
                   type="url"
-                  placeholder="https://images.unsplash.com/..."
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none"
+                  placeholder="https://..."
+                  value={qImageUrl}
+                  onChange={(e) => setQImageUrl(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white placeholder-slate-500 focus:outline-none"
                 />
+                {qImageUrl && (
+                  <div className="mt-2 p-1 bg-black rounded-lg border border-slate-800 flex justify-center">
+                    <img src={qImageUrl} alt="Preview" className="h-24 object-contain" />
+                  </div>
+                )}
               </div>
 
-              {/* Diagram spot calibration */}
-              {formData.type === 'diagram' && (
+              {/* MCQ Options with clear click-to-mark correct answer */}
+              {qType === 'mcq' && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-slate-400 font-semibold">Options (Click green button to mark correct)</label>
+                    {qOptions.length < 6 && (
+                      <button 
+                        type="button" 
+                        onClick={addOptionField} 
+                        className="text-indigo-400 hover:text-indigo-300 font-bold text-[11px]"
+                      >
+                        + Add Choice
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    {qOptions.map((opt, i) => {
+                      const isCorrect = qCorrectIndex === i;
+                      return (
+                        <div 
+                          key={i} 
+                          className={`flex items-center gap-2 p-1.5 rounded-xl border transition ${isCorrect ? 'border-emerald-500 bg-emerald-950/20' : 'border-slate-800 bg-slate-850'}`}
+                        >
+                          <span className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center ${isCorrect ? 'bg-emerald-500 text-black font-black' : 'bg-slate-700 text-slate-300'}`}>
+                            {String.fromCharCode(65 + i)}
+                          </span>
+
+                          <input
+                            required
+                            type="text"
+                            placeholder={`Option ${String.fromCharCode(65 + i)} text`}
+                            value={opt}
+                            onChange={(e) => handleOptionChange(i, e.target.value)}
+                            className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm px-2"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => setQCorrectIndex(i)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${isCorrect ? 'bg-emerald-500 text-black' : 'bg-slate-800 text-slate-400 hover:bg-slate-750'}`}
+                          >
+                            {isCorrect ? <Check className="w-3.5 h-3.5" /> : null}
+                            {isCorrect ? 'Correct' : 'Mark'}
+                          </button>
+
+                          {qOptions.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => removeOptionField(i)}
+                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg"
+                              title="Delete option"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Boolean True / False Selection */}
+              {qType === 'boolean' && (
+                <div className="space-y-2">
+                  <label className="block text-slate-400 font-semibold">Correct Answer</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setQCorrectIndex(0)}
+                      className={`py-3 rounded-xl border font-bold text-sm transition flex items-center justify-center gap-2 ${qCorrectIndex === 0 ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30' : 'bg-slate-850 border-slate-750 text-slate-400'}`}
+                    >
+                      {qCorrectIndex === 0 && <Check className="w-4 h-4" />} True
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQCorrectIndex(1)}
+                      className={`py-3 rounded-xl border font-bold text-sm transition flex items-center justify-center gap-2 ${qCorrectIndex === 1 ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30' : 'bg-slate-850 border-slate-750 text-slate-400'}`}
+                    >
+                      {qCorrectIndex === 1 && <Check className="w-4 h-4" />} False
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Diagram target coords */}
+              {qType === 'diagram' && (
                 <div className="bg-slate-850 p-3 rounded-xl border border-slate-800 space-y-1">
                   <label className="block text-indigo-300 font-semibold">Target Box (xMin, yMin, xMax, yMax in %)</label>
                   <input
                     type="text"
-                    value={formData.targetCoords}
-                    onChange={(e) => setFormData({ ...formData, targetCoords: e.target.value })}
+                    value={qTargetCoords}
+                    onChange={(e) => setQTargetCoords(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white"
                   />
-                  <p className="text-[10px] text-slate-500">Default "30,30,70,70" detects clicks within central 40% area.</p>
-                </div>
-              )}
-
-              {/* MCQ Options */}
-              {formData.type === 'mcq' && (
-                <div className="space-y-2">
-                  <label className="block text-slate-400 font-semibold">Options & Mark Correct One</label>
-                  {formData.options.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="correctAnswer"
-                        checked={formData.correctIndex === i}
-                        onChange={() => setFormData({ ...formData, correctIndex: i })}
-                        className="accent-indigo-500 w-4 h-4 cursor-pointer"
-                      />
-                      <input
-                        required
-                        type="text"
-                        placeholder={`Option ${i + 1}`}
-                        value={opt}
-                        onChange={(e) => {
-                          const copy = [...formData.options];
-                          copy[i] = e.target.value;
-                          setFormData({ ...formData, options: copy });
-                        }}
-                        className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-white"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* True/False selection */}
-              {formData.type === 'boolean' && (
-                <div className="space-y-2">
-                  <label className="block text-slate-400 font-semibold">Correct Answer</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="boolAns"
-                        checked={formData.correctIndex === 0}
-                        onChange={() => setFormData({ ...formData, correctIndex: 0 })}
-                        className="accent-indigo-500 w-4 h-4"
-                      />
-                      <span>True</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="boolAns"
-                        checked={formData.correctIndex === 1}
-                        onChange={() => setFormData({ ...formData, correctIndex: 1 })}
-                        className="accent-indigo-500 w-4 h-4"
-                      />
-                      <span>False</span>
-                    </label>
-                  </div>
+                  <p className="text-[10px] text-slate-500">Default "30,30,70,70" detects clicks within the middle 40% area.</p>
                 </div>
               )}
 
@@ -775,31 +845,31 @@ export default function App() {
                   type="number"
                   min="5"
                   max="120"
-                  value={formData.timeLimit}
-                  onChange={(e) => setFormData({ ...formData, timeLimit: e.target.value })}
+                  value={qTimeLimit}
+                  onChange={(e) => setQTimeLimit(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold text-sm text-white rounded-xl shadow-md transition"
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 font-bold text-sm text-white rounded-xl shadow-lg shadow-indigo-600/30 transition"
               >
-                {editingQId ? "Update Question in Bank" : "Save Question to Quiz Bank"}
+                {editingQId ? "Update Question in Quiz Bank" : "Save Question to Quiz Bank"}
               </button>
             </form>
           </div>
 
-          {/* List of Questions in Bank */}
-          <div className="md:col-span-7 space-y-4">
+          {/* Question List */}
+          <div className="lg:col-span-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold">Current Questions ({questions.length})</h2>
-              <span className="text-xs text-slate-500">Live synced with participant lobby</span>
+              <h2 className="text-lg font-bold">Quiz Bank Questions ({questions.length})</h2>
+              <span className="text-xs text-slate-500">Live synced with participants</span>
             </div>
 
-            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="space-y-3 max-h-[75vh] overflow-y-auto pr-2">
               {questions.map((q, idx) => (
-                <div key={q.id || idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex gap-4 items-start hover:border-slate-700 transition">
+                <div key={q.id || idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex gap-3 items-start hover:border-slate-700 transition">
                   <span className="w-7 h-7 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black flex items-center justify-center text-indigo-400 flex-shrink-0">
                     {idx + 1}
                   </span>
@@ -809,16 +879,16 @@ export default function App() {
                       <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
                         {q.type} • {q.timeLimit}s
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handleEditClick(q)}
+                          onClick={() => handleEdit(q)}
                           className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition"
                           title="Edit"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteQuestion(q.id)}
+                          onClick={() => handleDelete(q.id)}
                           className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition"
                           title="Delete"
                         >
@@ -827,10 +897,10 @@ export default function App() {
                       </div>
                     </div>
 
-                    <p className="font-semibold text-sm">{q.question}</p>
+                    <p className="font-semibold text-sm leading-snug">{q.question}</p>
 
                     {q.imageUrl && (
-                      <img src={q.imageUrl} alt="preview" className="h-20 w-32 object-cover rounded-lg border border-slate-800" />
+                      <img src={q.imageUrl} alt="preview" className="h-16 w-28 object-cover rounded-lg border border-slate-800" />
                     )}
 
                     {q.type === 'mcq' && (
@@ -838,9 +908,11 @@ export default function App() {
                         {q.options.map((opt, oIdx) => (
                           <span
                             key={oIdx}
-                            className={`text-xs px-2 py-1 rounded border truncate ${oIdx === q.correctIndex ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 font-bold' : 'bg-slate-950/50 border-slate-800 text-slate-400'}`}
+                            className={`text-xs px-2.5 py-1 rounded-lg border truncate flex items-center gap-1.5 ${oIdx === q.correctIndex ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 font-bold' : 'bg-slate-950/40 border-slate-800 text-slate-400'}`}
                           >
-                            {opt}
+                            <span className="text-[10px] opacity-60">{String.fromCharCode(65 + oIdx)}.</span>
+                            <span className="truncate">{opt}</span>
+                            {oIdx === q.correctIndex && <Check className="w-3 h-3 text-emerald-400 ml-auto flex-shrink-0" />}
                           </span>
                         ))}
                       </div>
@@ -853,10 +925,9 @@ export default function App() {
         </div>
       )}
 
-      {/* TAB 2: LIVE HOST & PROJECTOR VIEW */}
+      {/* LIVE PROJECTOR & GAME VIEW */}
       {adminTab === "live" && (
         <div className="flex-1 flex flex-col md:flex-row">
-          {/* Sidebar controls */}
           <div className="w-full md:w-80 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between space-y-6">
             <div className="space-y-6">
               <div className="bg-slate-800/60 p-4 rounded-xl space-y-2 border border-slate-700/50">
@@ -882,7 +953,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Stage Control Buttons */}
               <div className="space-y-3">
                 {game.status === 'LOBBY' && (
                   <button
@@ -930,7 +1000,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Main Projector Screen */}
           <div className="flex-1 p-6 flex flex-col justify-center items-center bg-slate-950 overflow-y-auto">
             {game.status === 'LOBBY' && (
               <div className="max-w-xl w-full text-center space-y-5 my-auto">
@@ -1020,14 +1089,14 @@ export default function App() {
                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
                   {getLeaderboard().slice(0, 5).map((entry, idx) => (
                     <div key={idx} className="flex items-center justify-between bg-slate-900 p-4 rounded-2xl border border-slate-800">
-                      <div className="flex items-center gap-4">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-black' : idx === 1 ? 'bg-slate-300 text-black' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                          {idx + 1}
-                        </span>
-                        <span className="font-bold text-lg">{entry.name}</span>
-                      </div>
-                      <span className="text-indigo-400 font-extrabold text-xl">{entry.score || 0} pts</span>
-                    </div>
+                  <div className="flex items-center gap-4">
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-black' : idx === 1 ? 'bg-slate-300 text-black' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                      {idx + 1}
+                    </span>
+                    <span className="font-bold text-lg">{entry.name}</span>
+                  </div>
+                  <span className="text-indigo-400 font-extrabold text-xl">{entry.score || 0} pts</span>
+                </div>
                   ))}
                 </div>
               </div>
