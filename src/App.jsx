@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase';
 import { ref, set, update, onValue, get } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
@@ -7,7 +7,7 @@ import {
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
   Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon, Upload,
-  ArrowUp, ArrowDown, ToggleLeft, ToggleRight, Eye, EyeOff
+  ArrowUp, ArrowDown, EyeOff, Search
 } from 'lucide-react';
 
 const PUZZLE_14_INITIAL = [
@@ -27,6 +27,17 @@ const PUZZLE_14_SOLUTION = [
 ];
 
 const INITIAL_QUESTIONS = [
+  {
+    id: "q_search_1",
+    type: "wordsearch",
+    enabled: true,
+    question: "WORD SEARCH: Find and drag to highlight the word 'GALAXY'!",
+    targetWord: "GALAXY",
+    imageUrl: "https://images.unsplash.com/photo-1543722530-d2c3201371e7?auto=format&fit=crop&w=600&q=80",
+    wordHighlight: { x1: 20, y1: 45, x2: 80, y2: 45 },
+    timeLimit: 35,
+    explanation: "'GALAXY' was positioned horizontally across the middle row!"
+  },
   {
     id: "q_word_1",
     type: "word",
@@ -168,6 +179,103 @@ function MatchstickBoard({ currentSticks, onStickToggle, isInteractive = true, s
   );
 }
 
+// Word Search Interactive Highlighter Component
+function WordSearchCanvas({ imageUrl, highlight, onHighlightChange, isInteractive = true, solutionHighlight = null }) {
+  const containerRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPoint, setStartPoint] = useState(null);
+  const [currentLine, setCurrentLine] = useState(highlight || null);
+
+  useEffect(() => {
+    setCurrentLine(highlight);
+  }, [highlight]);
+
+  const getPercentCoords = (e) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+    return { x, y };
+  };
+
+  const handlePointerDown = (e) => {
+    if (!isInteractive) return;
+    const coords = getPercentCoords(e);
+    if (!coords) return;
+    setIsDrawing(true);
+    setStartPoint(coords);
+    setCurrentLine({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isInteractive || !isDrawing || !startPoint) return;
+    const coords = getPercentCoords(e);
+    if (!coords) return;
+    setCurrentLine({ x1: startPoint.x, y1: startPoint.y, x2: coords.x, y2: coords.y });
+  };
+
+  const handlePointerUp = () => {
+    if (!isInteractive || !isDrawing) return;
+    setIsDrawing(false);
+    if (currentLine && onHighlightChange) {
+      onHighlightChange(currentLine);
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseDown={handlePointerDown}
+      onMouseMove={handlePointerMove}
+      onMouseUp={handlePointerUp}
+      onTouchStart={handlePointerDown}
+      onTouchMove={handlePointerMove}
+      onTouchEnd={handlePointerUp}
+      className={`relative inline-block max-w-full overflow-hidden rounded-2xl border border-slate-700 bg-black select-none touch-none ${isInteractive ? 'cursor-crosshair' : ''}`}
+    >
+      <img
+        src={imageUrl}
+        alt="Word Search Puzzle"
+        className="max-h-[380px] w-auto object-contain pointer-events-none"
+        draggable={false}
+      />
+
+      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+        {/* Correct Solution Highlight (On Reveal) */}
+        {solutionHighlight && (
+          <line
+            x1={`${solutionHighlight.x1}%`}
+            y1={`${solutionHighlight.y1}%`}
+            x2={`${solutionHighlight.x2}%`}
+            y2={`${solutionHighlight.y2}%`}
+            stroke="#10b981"
+            strokeWidth="24"
+            strokeLinecap="round"
+            strokeOpacity="0.55"
+          />
+        )}
+
+        {/* User's Drawn Highlight Line */}
+        {currentLine && (
+          <line
+            x1={`${currentLine.x1}%`}
+            y1={`${currentLine.y1}%`}
+            x2={`${currentLine.x2}%`}
+            y2={`${currentLine.y2}%`}
+            stroke="#f59e0b"
+            strokeWidth="22"
+            strokeLinecap="round"
+            strokeOpacity="0.6"
+            className="transition-all"
+          />
+        )}
+      </svg>
+    </div>
+  );
+}
+
 export default function App() {
   const [role, setRole] = useState(null);
   const [roomId, setRoomId] = useState("QUIZ1");
@@ -180,17 +288,19 @@ export default function App() {
 
   // Question Form Builder state
   const [editingQId, setEditingQId] = useState(null);
-  const [qType, setQType] = useState("word");
+  const [qType, setQType] = useState("wordsearch");
   const [qText, setQText] = useState("");
   const [qOptions, setQOptions] = useState(["True", "False"]);
   const [qCorrectIndex, setQCorrectIndex] = useState(0);
-  const [qTimeLimit, setQTimeLimit] = useState(25);
+  const [qTimeLimit, setQTimeLimit] = useState(30);
   const [qImageUrl, setQImageUrl] = useState("");
   const [qImage1, setQImage1] = useState("");
   const [qImage2, setQImage2] = useState("");
   const [qTargetCoords, setQTargetCoords] = useState("30,30,70,70");
   const [qExplanation, setQExplanation] = useState("");
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState("seesaw, see saw");
+  const [qTargetWord, setQTargetWord] = useState("GALAXY");
+  const [qWordHighlight, setQWordHighlight] = useState({ x1: 20, y1: 50, x2: 80, y2: 50 });
   const [qMatchInitial, setQMatchInitial] = useState(PUZZLE_14_INITIAL);
   const [qMatchSolution, setQMatchSolution] = useState(PUZZLE_14_SOLUTION);
   const [statusMessage, setStatusMessage] = useState("");
@@ -215,11 +325,11 @@ export default function App() {
   const [typedAnswer, setTypedAnswer] = useState("");
   const [tapCoords, setTapCoords] = useState(null);
 
-  // Participant Matchstick state
+  // Participant interactive states
   const [userSticks, setUserSticks] = useState(PUZZLE_14_INITIAL);
   const [stickInventory, setStickInventory] = useState(0);
+  const [userHighlight, setUserHighlight] = useState(null);
 
-  // Active playable question list (filters out toggled-off questions)
   const activeQuestions = questions.filter(q => q.enabled !== false);
 
   // Firebase Realtime DB listeners
@@ -289,6 +399,7 @@ export default function App() {
     setSelectedAnswer(null);
     setTypedAnswer("");
     setTapCoords(null);
+    setUserHighlight(null);
     const curr = activeQuestions[game.currentIndex];
     if (curr && curr.type === 'matchstick') {
       setUserSticks(curr.initialSticks || PUZZLE_14_INITIAL);
@@ -306,7 +417,7 @@ export default function App() {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_DIM = 500;
+        const MAX_DIM = 600;
         let width = img.width;
         let height = img.height;
 
@@ -327,7 +438,7 @@ export default function App() {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         if (targetField === 'image1') setQImage1(dataUrl);
         else if (targetField === 'image2') setQImage2(dataUrl);
         else setQImageUrl(dataUrl);
@@ -373,7 +484,7 @@ export default function App() {
     update(ref(db, `rooms/${roomId}/game`), {
       status: 'QUESTION',
       currentIndex: 0,
-      timeRemaining: firstQ.timeLimit || 20,
+      timeRemaining: firstQ.timeLimit || 25,
       questionStartTime: Date.now()
     });
     set(ref(db, `rooms/${roomId}/answers`), {});
@@ -388,7 +499,7 @@ export default function App() {
       update(ref(db, `rooms/${roomId}/game`), {
         status: 'QUESTION',
         currentIndex: nextIdx,
-        timeRemaining: q.timeLimit || 20,
+        timeRemaining: q.timeLimit || 25,
         questionStartTime: Date.now()
       });
       set(ref(db, `rooms/${roomId}/answers`), {});
@@ -413,32 +524,38 @@ export default function App() {
 
   const resetForm = () => {
     setEditingQId(null);
-    setQType("word");
+    setQType("wordsearch");
     setQText("");
     setQOptions(["True", "False"]);
     setQCorrectIndex(0);
-    setQTimeLimit(25);
+    setQTimeLimit(30);
     setQImageUrl("");
     setQImage1("");
     setQImage2("");
     setQTargetCoords("30,30,70,70");
     setQExplanation("");
     setQAcceptedAnswers("");
+    setQTargetWord("");
+    setQWordHighlight({ x1: 20, y1: 50, x2: 80, y2: 50 });
     setQMatchInitial(PUZZLE_14_INITIAL);
     setQMatchSolution(PUZZLE_14_SOLUTION);
   };
 
   const handleEdit = (q) => {
     setEditingQId(q.id);
-    setQType(q.type || "mcq");
+    setQType(q.type || "wordsearch");
     setQText(q.question || "");
     setQOptions(q.options && q.options.length ? [...q.options] : ["True", "False"]);
     setQCorrectIndex(q.correctIndex || 0);
-    setQTimeLimit(q.timeLimit || 20);
+    setQTimeLimit(q.timeLimit || 25);
     setQImageUrl(q.imageUrl || "");
     setQImage1(q.image1 || "");
     setQImage2(q.image2 || "");
     setQExplanation(q.explanation || "");
+    if (q.type === 'wordsearch') {
+      setQTargetWord(q.targetWord || "");
+      if (q.wordHighlight) setQWordHighlight(q.wordHighlight);
+    }
     if (q.type === 'word') {
       setQAcceptedAnswers(Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : "");
     }
@@ -446,20 +563,13 @@ export default function App() {
       setQMatchInitial(q.initialSticks || PUZZLE_14_INITIAL);
       setQMatchSolution(q.validSolutions?.[0] || PUZZLE_14_SOLUTION);
     }
-    if (q.target) {
-      setQTargetCoords(`${q.target.xMin},${q.target.yMin},${q.target.xMax},${q.target.yMax}`);
-    } else {
-      setQTargetCoords("30,30,70,70");
-    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Toggle single question active/inactive state
   const handleToggleQuestion = (id) => {
     const updatedList = questions.map(q => {
       if (q.id === id) {
-        const currentEnabled = q.enabled !== false;
-        return { ...q, enabled: !currentEnabled };
+        return { ...q, enabled: q.enabled === false ? true : false };
       }
       return q;
     });
@@ -467,7 +577,6 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/questions`), updatedList);
   };
 
-  // Move Question Up
   const handleMoveUp = (index) => {
     if (index === 0) return;
     const updated = [...questions];
@@ -478,7 +587,6 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/questions`), updated);
   };
 
-  // Move Question Down
   const handleMoveDown = (index) => {
     if (index === questions.length - 1) return;
     const updated = [...questions];
@@ -496,18 +604,14 @@ export default function App() {
   };
 
   const addOptionField = () => {
-    if (qOptions.length < 6) {
-      setQOptions([...qOptions, ""]);
-    }
+    if (qOptions.length < 6) setQOptions([...qOptions, ""]);
   };
 
   const removeOptionField = (idx) => {
     if (qOptions.length > 2) {
       const updated = qOptions.filter((_, i) => i !== idx);
       setQOptions(updated);
-      if (qCorrectIndex >= updated.length) {
-        setQCorrectIndex(0);
-      }
+      if (qCorrectIndex >= updated.length) setQCorrectIndex(0);
     }
   };
 
@@ -518,6 +622,8 @@ export default function App() {
       if (qCorrectIndex > 1) setQCorrectIndex(0);
     } else if (type === 'mcq' && qOptions.length < 4) {
       setQOptions(["", "", "", ""]);
+    } else if (type === 'wordsearch') {
+      setQTimeLimit(35);
     } else if (type === 'word') {
       setQTimeLimit(25);
     } else if (type === 'matchstick') {
@@ -532,13 +638,18 @@ export default function App() {
       return;
     }
 
+    if (qType === 'wordsearch' && !qImageUrl) {
+      setStatusMessage("Error: Please upload or provide a puzzle image for Word Search.");
+      return;
+    }
+
     let finalOptions = qOptions;
     let accepted = [];
 
     if (qType === 'boolean') {
       finalOptions = ["True", "False"];
-    } else if (qType === 'diagram') {
-      finalOptions = ["Target Spot on Image"];
+    } else if (qType === 'wordsearch') {
+      finalOptions = ["Word Search Highlight"];
     } else if (qType === 'matchstick') {
       finalOptions = ["Interactive Matchstick Grid"];
     } else if (qType === 'word') {
@@ -560,17 +671,6 @@ export default function App() {
       finalOptions = cleanOptions;
     }
 
-    let parsedTarget = null;
-    if (qType === 'diagram') {
-      const nums = qTargetCoords.split(',').map(n => Number(n.trim()));
-      parsedTarget = {
-        xMin: nums[0] || 25,
-        yMin: nums[1] || 25,
-        xMax: nums[2] || 75,
-        yMax: nums[3] || 75
-      };
-    }
-
     const payload = {
       id: editingQId || `q_${Date.now()}`,
       type: qType,
@@ -578,13 +678,14 @@ export default function App() {
       question: qText.trim(),
       options: finalOptions,
       correctIndex: Number(qCorrectIndex),
-      timeLimit: Number(qTimeLimit) || 20,
+      timeLimit: Number(qTimeLimit) || 25,
       imageUrl: qImageUrl.trim() || null,
       image1: qType === 'word' ? (qImage1.trim() || null) : null,
       image2: qType === 'word' ? (qImage2.trim() || null) : null,
       explanation: qExplanation.trim() || null,
+      targetWord: qType === 'wordsearch' ? (qTargetWord.trim().toUpperCase() || "WORD") : null,
+      wordHighlight: qType === 'wordsearch' ? qWordHighlight : null,
       acceptedAnswers: qType === 'word' ? accepted : null,
-      target: parsedTarget,
       initialSticks: qType === 'matchstick' ? qMatchInitial : null,
       validSolutions: qType === 'matchstick' ? [qMatchSolution] : null
     };
@@ -612,6 +713,46 @@ export default function App() {
       const updatedList = questions.filter(q => q.id !== id);
       setQuestions(updatedList);
       set(ref(db, `rooms/${roomId}/questions`), updatedList);
+    }
+  };
+
+  // Submit Word Search Selection
+  const submitWordSearchHighlight = () => {
+    if (!userHighlight || selectedAnswer !== null || game.status !== 'QUESTION') return;
+    const curr = activeQuestions[game.currentIndex];
+    const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
+
+    let isCorrect = false;
+    if (curr.wordHighlight) {
+      const target = curr.wordHighlight;
+      const tol = 16; // 16% coordinate tolerance margin for finger touches
+
+      // Check distance in standard or reverse direction
+      const directMatch =
+        Math.hypot(userHighlight.x1 - target.x1, userHighlight.y1 - target.y1) < tol &&
+        Math.hypot(userHighlight.x2 - target.x2, userHighlight.y2 - target.y2) < tol;
+
+      const reverseMatch =
+        Math.hypot(userHighlight.x1 - target.x2, userHighlight.y1 - target.y2) < tol &&
+        Math.hypot(userHighlight.x2 - target.x1, userHighlight.y2 - target.y1) < tol;
+
+      isCorrect = directMatch || reverseMatch;
+    }
+
+    setSelectedAnswer("WORDSEARCH_SUBMITTED");
+
+    set(ref(db, `rooms/${roomId}/answers/${participantId}`), {
+      answer: "HIGHLIGHTED",
+      isCorrect,
+      timeRemaining: game.timeRemaining
+    });
+
+    if (isCorrect) {
+      const addedPoints = 130 + (game.timeRemaining * 10);
+      const currentScore = participants[participantId]?.score || 0;
+      update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
+        score: currentScore + addedPoints
+      });
     }
   };
 
@@ -697,23 +838,12 @@ export default function App() {
     }
   };
 
-  const submitAnswer = (optionIdx, coords = null) => {
+  const submitAnswer = (optionIdx) => {
     if (selectedAnswer !== null || game.status !== 'QUESTION') return;
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
     const currQ = activeQuestions[game.currentIndex];
     
-    let isCorrect = false;
-    if (currQ.type === 'diagram' && coords && currQ.target) {
-      isCorrect = 
-        coords.x >= currQ.target.xMin && 
-        coords.x <= currQ.target.xMax && 
-        coords.y >= currQ.target.yMin && 
-        coords.y <= currQ.target.yMax;
-      setTapCoords(coords);
-    } else {
-      isCorrect = optionIdx === currQ.correctIndex;
-    }
-
+    const isCorrect = optionIdx === currQ.correctIndex;
     setSelectedAnswer(optionIdx);
 
     set(ref(db, `rooms/${roomId}/answers/${participantId}`), {
@@ -771,7 +901,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight">Live Interactive Quiz</h1>
-            <p className="text-slate-400 mt-2">Word Riddles, Matchsticks, Trivia & Visual Challenges</p>
+            <p className="text-slate-400 mt-2">Word Searches, Riddles, Matchsticks & Trivia</p>
           </div>
 
           <div className="space-y-4 pt-4">
@@ -863,7 +993,7 @@ export default function App() {
       if (!currQ) {
         return (
           <div className="min-h-screen bg-slate-950 text-white p-6 flex items-center justify-center text-center">
-            <p className="text-slate-400">Waiting for next active question...</p>
+            <p className="text-slate-400">Waiting for next question...</p>
           </div>
         );
       }
@@ -880,7 +1010,35 @@ export default function App() {
 
             <h3 className="text-base font-bold mb-3 leading-snug">{currQ.question}</h3>
 
-            {/* DUAL PICTURE CLUES */}
+            {/* WORD SEARCH PUZZLE INTERACTION */}
+            {currQ.type === 'wordsearch' && currQ.imageUrl && (
+              <div className="space-y-3 flex flex-col items-center">
+                <div className="w-full flex justify-between items-center text-xs bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                  <span className="text-slate-400">Word to Find: <b className="text-amber-400 text-sm tracking-wider">{currQ.targetWord}</b></span>
+                  <span className="text-[10px] text-slate-500">Touch & drag to highlight</span>
+                </div>
+
+                <WordSearchCanvas
+                  imageUrl={currQ.imageUrl}
+                  highlight={userHighlight}
+                  onHighlightChange={setUserHighlight}
+                  isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
+                  solutionHighlight={game.status === 'REVEAL' ? currQ.wordHighlight : null}
+                />
+
+                {selectedAnswer === null && game.status === 'QUESTION' && (
+                  <button
+                    disabled={!userHighlight}
+                    onClick={submitWordSearchHighlight}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 font-bold rounded-xl text-white shadow-lg shadow-emerald-600/30 transition active:scale-[0.98]"
+                  >
+                    Submit Word Highlight
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* DUAL PICTURE CLUES FOR GUESS WORD */}
             {currQ.type === 'word' && (
               <div className="mb-4">
                 {currQ.image1 && currQ.image2 ? (
@@ -1036,6 +1194,12 @@ export default function App() {
           <div>
             {game.status === 'REVEAL' && (
               <div className="mt-4 p-4 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
+                {currQ.type === 'wordsearch' && (
+                  <div className="mb-2">
+                    <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Word Found:</span>
+                    <p className="text-xl font-black text-white uppercase tracking-wider">{currQ.targetWord}</p>
+                  </div>
+                )}
                 {currQ.type === 'word' && (
                   <div className="mb-2">
                     <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Correct Word:</span>
@@ -1135,7 +1299,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* QUESTION BUILDER WITH TOGGLE OPTIONS */}
+      {/* QUESTION BUILDER WITH WORD SEARCH */}
       {adminTab === "builder" && (
         <div className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
@@ -1163,8 +1327,9 @@ export default function App() {
             <form onSubmit={handleSaveQuestion} className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Format</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
                   {[
+                    { id: 'wordsearch', label: 'Word Search' },
                     { id: 'word', label: 'Guess Word' },
                     { id: 'boolean', label: 'True / False' },
                     { id: 'mcq', label: 'Multiple Choice' },
@@ -1174,7 +1339,7 @@ export default function App() {
                       key={tab.id}
                       type="button"
                       onClick={() => handleTypeSwitch(tab.id)}
-                      className={`py-2 rounded-xl border font-bold text-center transition ${qType === tab.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-850 border-slate-750 text-slate-400 hover:text-white'}`}
+                      className={`py-2 rounded-xl border font-bold text-center text-[11px] transition ${qType === tab.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-850 border-slate-750 text-slate-400 hover:text-white'}`}
                     >
                       {tab.label}
                     </button>
@@ -1187,18 +1352,75 @@ export default function App() {
                 <textarea
                   required
                   rows={2}
-                  placeholder={qType === 'word' ? "e.g. Combine the two pictures to guess the compound word!" : "Enter question prompt..."}
+                  placeholder={qType === 'wordsearch' ? "e.g. Find and highlight the hidden word 'GALAXY' in the puzzle!" : "Enter question prompt..."}
                   value={qText}
                   onChange={(e) => setQText(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
 
-              {/* DUAL IMAGE UPLOAD & URL CONTROLS */}
+              {/* WORD SEARCH PUZZLE UPLOAD & CALIBRATION */}
+              {qType === 'wordsearch' && (
+                <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
+                  <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
+                    <Search className="w-4 h-4 text-indigo-400" /> Word Search Image & Word Solution:
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">Target Word to Find:</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g. GALAXY"
+                      value={qTargetWord}
+                      onChange={(e) => setQTargetWord(e.target.value.toUpperCase())}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white font-mono uppercase tracking-wider text-xs font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] text-slate-300 font-semibold">Upload Word Search Puzzle Image:</label>
+                    <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
+                      <Upload className="w-3.5 h-3.5" /> Upload Puzzle Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'single')}
+                        className="hidden"
+                      />
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="Or paste puzzle image URL..."
+                      value={qImageUrl}
+                      onChange={(e) => setQImageUrl(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-600 text-xs"
+                    />
+                  </div>
+
+                  {qImageUrl && (
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between items-center text-[10px] text-amber-400 font-semibold">
+                        <span>Drag across the word below to set the correct answer location:</span>
+                      </div>
+                      <div className="flex justify-center">
+                        <WordSearchCanvas
+                          imageUrl={qImageUrl}
+                          highlight={qWordHighlight}
+                          onHighlightChange={setQWordHighlight}
+                          isInteractive={true}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* DUAL IMAGE UPLOAD FOR GUESS WORD */}
               {qType === 'word' && (
                 <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
                   <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
-                    <ImageIcon className="w-4 h-4 text-indigo-400" /> Two Clue Pictures (Upload from Device or Paste URL):
+                    <ImageIcon className="w-4 h-4 text-indigo-400" /> Two Clue Pictures:
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1255,7 +1477,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* ACCEPTED ANSWERS */}
+              {/* ACCEPTED ANSWERS FOR GUESS WORD */}
               {qType === 'word' && (
                 <div className="p-3 bg-indigo-950/20 border border-indigo-500/30 rounded-xl space-y-1">
                   <label className="block text-indigo-300 font-bold flex items-center gap-1.5">
@@ -1381,7 +1603,6 @@ export default function App() {
                     }}
                     isInteractive={true}
                   />
-                  <p className="text-[10px] text-slate-500">Tap sticks above to toggle which sticks start on the board.</p>
                 </div>
               )}
 
@@ -1398,34 +1619,6 @@ export default function App() {
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
                 />
               </div>
-
-              {/* NON-WORD SINGLE IMAGE */}
-              {qType !== 'word' && (
-                <div className="space-y-1.5">
-                  <label className="block text-slate-400 font-semibold">Image (Upload from Device or Paste URL):</label>
-                  <label className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-600 rounded-lg cursor-pointer text-indigo-300 text-xs font-semibold">
-                    <Upload className="w-3.5 h-3.5" /> Upload Image File
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload(e, 'single')}
-                      className="hidden"
-                    />
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="Or paste URL here..."
-                    value={qImageUrl}
-                    onChange={(e) => setQImageUrl(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white placeholder-slate-600 text-xs"
-                  />
-                  {qImageUrl && (
-                    <div className="h-20 bg-white rounded-lg p-1 flex justify-center border border-slate-700">
-                      <img src={qImageUrl} alt="Preview" className="h-full object-contain" />
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Time Limit (Seconds)</label>
@@ -1448,14 +1641,13 @@ export default function App() {
             </form>
           </div>
 
-          {/* Question List (Right Column with Toggles and Reordering) */}
+          {/* Question List (Right Column) */}
           <div className="lg:col-span-6 space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-bold">Quiz Bank Questions ({questions.length})</h2>
                 <span className="text-xs text-indigo-400 font-semibold">{activeQuestions.length} Active in current quiz</span>
               </div>
-              <span className="text-xs text-slate-500">Toggle or reorder items</span>
             </div>
 
             <div className="space-y-3 max-h-[78vh] overflow-y-auto pr-2">
@@ -1466,13 +1658,11 @@ export default function App() {
                     key={q.id || idx} 
                     className={`border rounded-2xl p-4 flex gap-3 items-start transition-all ${isEnabled ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-slate-950/60 border-slate-850 opacity-60'}`}
                   >
-                    {/* Reordering Controls */}
                     <div className="flex flex-col items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => handleMoveUp(idx)}
                         disabled={idx === 0}
                         className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20"
-                        title="Move Up"
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
@@ -1483,7 +1673,6 @@ export default function App() {
                         onClick={() => handleMoveDown(idx)}
                         disabled={idx === questions.length - 1}
                         className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20"
-                        title="Move Down"
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
@@ -1496,11 +1685,9 @@ export default function App() {
                             {q.type} • {q.timeLimit}s
                           </span>
 
-                          {/* TOGGLE ACTIVE/INACTIVE BUTTON */}
                           <button
                             onClick={() => handleToggleQuestion(q.id)}
                             className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition border ${isEnabled ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
-                            title="Toggle whether this question appears during the quiz"
                           >
                             {isEnabled ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <EyeOff className="w-3 h-3 text-slate-400" />}
                             {isEnabled ? 'Active' : 'Inactive'}
@@ -1511,14 +1698,12 @@ export default function App() {
                           <button
                             onClick={() => handleEdit(q)}
                             className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition"
-                            title="Edit"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(q.id)}
                             className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition"
-                            title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1527,7 +1712,20 @@ export default function App() {
 
                       <p className={`font-semibold text-sm leading-snug ${isEnabled ? 'text-slate-200' : 'text-slate-500'}`}>{q.question}</p>
 
-                      {/* Word Question Clues Display */}
+                      {/* Word Search Info in list */}
+                      {q.type === 'wordsearch' && (
+                        <div className="flex items-center gap-3">
+                          {q.imageUrl && (
+                            <img src={q.imageUrl} alt="puzzle" className="h-14 w-14 object-cover rounded-lg border border-slate-700" />
+                          )}
+                          <div className="text-[11px] text-slate-400">
+                            <span className="text-amber-400 font-bold uppercase tracking-wider">Word: {q.targetWord}</span>
+                            <p className="text-[10px] text-slate-500">Interactive touch-and-drag line detection</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Word Question Clues */}
                       {q.type === 'word' && (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2">
@@ -1586,7 +1784,7 @@ export default function App() {
 
                       {q.explanation && (
                         <div className="text-[10px] text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-start gap-1.5">
-                          <Info className="w-3 h-3 text-indigo-400 flex-shrink-0 mt-0.5" />
+                          <Info className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
                           <span><b className="text-slate-300">Reason:</b> {q.explanation}</span>
                         </div>
                       )}
@@ -1729,7 +1927,23 @@ export default function App() {
 
                 <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">{currQ?.question}</h2>
 
-                {/* Projector: Dual Pictures for Guess the Word */}
+                {/* WORD SEARCH PROJECTOR DISPLAY */}
+                {currQ?.type === 'wordsearch' && currQ?.imageUrl && (
+                  <div className="flex flex-col items-center">
+                    <WordSearchCanvas
+                      imageUrl={currQ.imageUrl}
+                      isInteractive={false}
+                      solutionHighlight={game.status === 'REVEAL' ? currQ.wordHighlight : null}
+                    />
+                    {game.status === 'REVEAL' && (
+                      <span className="text-sm uppercase tracking-wider text-emerald-400 font-bold mt-3">
+                        ✓ Found Word: {currQ.targetWord}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* DUAL PICTURES FOR GUESS WORD */}
                 {currQ?.type === 'word' && (
                   <div className="flex justify-center items-center gap-4 my-4">
                     {currQ.image1 && currQ.image2 ? (
