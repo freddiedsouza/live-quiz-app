@@ -314,7 +314,7 @@ export default function App() {
   const [role, setRole] = useState(null);
   const [roomId, setRoomId] = useState("QUIZ1");
 
-  // Admin states
+  // Admin state - Passcode verification
   const [adminPass, setAdminPass] = useState("");
   const [isAdminAuthed, setIsAdminAuthed] = useState(false);
   const [adminTab, setAdminTab] = useState("live");
@@ -346,7 +346,7 @@ export default function App() {
   const [qMatchSolution, setQMatchSolution] = useState(PUZZLE_14_SOLUTION);
   const [statusMessage, setStatusMessage] = useState("");
 
-  // Room / Game synchronized state
+  // Game synchronized state
   const [game, setGame] = useState({
     status: 'LOBBY',
     mode: 'INDIVIDUAL',
@@ -423,7 +423,7 @@ export default function App() {
     };
   }, [roomId]);
 
-  // Admin live timer
+  // Admin countdown timer
   useEffect(() => {
     if (!isAdminAuthed || game.status !== 'QUESTION') return;
 
@@ -504,10 +504,10 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // Host operations
+  // Host login operation
   const handleAdminLogin = (e) => {
     e.preventDefault();
-    if (adminPass === "admin12345") {
+    if (adminPass === "admin123") {
       setIsAdminAuthed(true);
       const roomRef = ref(db, `rooms/${roomId}`);
       get(roomRef).then((snap) => {
@@ -527,7 +527,7 @@ export default function App() {
         }
       });
     } else {
-      alert("Incorrect passcode. Try: admin123");
+      alert("Incorrect passcode.");
     }
   };
 
@@ -589,7 +589,6 @@ export default function App() {
 
       if (counter > 30) {
         clearInterval(interval);
-        // Final decisive winner
         const chosen = participantList[Math.floor(Math.random() * participantList.length)];
         setAnimatedName(chosen.name);
         setIsSpinning(false);
@@ -1061,7 +1060,7 @@ export default function App() {
       );
     }
 
-    // PARTICIPANT LUCKY DRAW SCREEN
+    // Participant Lucky Draw celebration view
     if (game.status === 'LUCKY_DRAW') {
       const isWinner = luckyWinner && luckyWinner.name?.toLowerCase().trim() === playerName?.toLowerCase().trim();
 
@@ -1375,7 +1374,7 @@ export default function App() {
     );
   }
 
-  // Admin login view
+  // Host access login screen (hint removed)
   if (!isAdminAuthed) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -1384,7 +1383,7 @@ export default function App() {
             <ShieldCheck className="w-7 h-7" />
             <h2 className="text-xl font-bold text-white">Host Access</h2>
           </div>
-<p className="text-xs text-slate-400">Enter host passcode to continue</p>
+          <p className="text-xs text-slate-400">Enter host passcode to continue</p>
           <input
             type="password"
             placeholder="Enter passcode"
@@ -1896,6 +1895,7 @@ export default function App() {
 
                       <p className={`font-semibold text-sm leading-snug ${isEnabled ? 'text-slate-200' : 'text-slate-500'}`}>{q.question}</p>
 
+                      {/* Multi-Word Search summary */}
                       {q.type === 'wordsearch' && (
                         <div className="flex items-center gap-3">
                           {q.imageUrl && (
@@ -1916,6 +1916,7 @@ export default function App() {
                         </div>
                       )}
 
+                      {/* Word Question Clues */}
                       {q.type === 'word' && (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2">
@@ -2056,15 +2057,13 @@ export default function App() {
                   </button>
                 )}
 
-                {/* LUCKY DRAW BUTTON */}
-                {(game.status === 'FINAL' || game.status === 'LEADERBOARD') && (
-                  <button
-                    onClick={triggerLuckyDraw}
-                    className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98]"
-                  >
-                    <Gift className="w-5 h-5 fill-current" /> Run Lucky Draw ({participantList.length})
-                  </button>
-                )}
+                {/* Permanent Lucky Draw Sidebar Button */}
+                <button
+                  onClick={triggerLuckyDraw}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98]"
+                >
+                  <Gift className="w-5 h-5 fill-current" /> Run Lucky Draw ({participantList.length} Players)
+                </button>
 
                 <button
                   onClick={resetRoom}
@@ -2116,7 +2115,7 @@ export default function App() {
               </div>
             )}
 
-            {/* LUCKY DRAW PROJECTOR WHEEL / ANNOUNCEMENT */}
+            {/* Lucky Draw Wheel Animation */}
             {game.status === 'LUCKY_DRAW' && (
               <div className="max-w-xl w-full my-auto text-center space-y-6 animate-fade-in">
                 <div className="w-20 h-20 bg-yellow-400 text-black rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-yellow-500/40">
@@ -2128,7 +2127,6 @@ export default function App() {
                   <p className="text-slate-400 text-sm mt-1">Randomly selecting 1 winner from all {participantList.length} connected players</p>
                 </div>
 
-                {/* Animated Roller Box */}
                 <div className="p-8 bg-slate-900 border-2 border-yellow-500/60 rounded-3xl shadow-2xl relative overflow-hidden">
                   <div className="text-xs uppercase tracking-widest text-amber-400 font-bold mb-2">
                     {isSpinning ? "SHUFFLING NAMES..." : "🎉 WINNER SELECTED 🎉"}
@@ -2304,18 +2302,6 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-
-                {/* LUCKY DRAW BUTTON DIRECTLY ON FINAL SCREEN */}
-                {game.status === 'FINAL' && (
-                  <div className="pt-4 border-t border-slate-800">
-                    <button
-                      onClick={triggerLuckyDraw}
-                      className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-3 text-lg shadow-xl shadow-yellow-500/20 transition active:scale-[0.98]"
-                    >
-                      <Gift className="w-6 h-6 fill-current" /> Run Lucky Draw ({participantList.length} Connected Players)
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>
