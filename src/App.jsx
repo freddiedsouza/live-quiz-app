@@ -1335,6 +1335,12 @@ const unsubQ = onValue(qRef, (snapshot) => {
             {/* JUMBLE ENGINE */}
             {currQ.type === 'jumble' && (
               <div className="space-y-5 my-2">
+              {currQ.explanation && (
+                    <div className="bg-indigo-500/10 border border-indigo-500/30 p-3 rounded-xl flex gap-2.5 items-center shadow-inner animate-fade-in">
+                      <span className="bg-indigo-600 text-white text-[10px] uppercase font-black px-2 py-1 rounded-md tracking-wider shadow">Hint</span>
+                      <span className="text-indigo-200 text-sm font-semibold text-left">{currQ.explanation}</span>
+                    </div>
+                  )}
                 <div className="space-y-1 text-center">
                   <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Your Assembled Word:</span>
                   <div className="flex flex-wrap gap-2 justify-center min-h-[58px] p-2 bg-slate-900/90 rounded-2xl border-2 border-dashed border-slate-700">
