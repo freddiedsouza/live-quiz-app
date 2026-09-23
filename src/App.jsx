@@ -7,9 +7,10 @@ import {
   Trophy, Clock, CheckCircle2, Play, 
   ChevronRight, RefreshCw, Smartphone, Monitor, ShieldCheck, Sparkles, Plus, 
   Trash2, Edit3, Layers, Check, X, Info, RotateCcw, Type, Image as ImageIcon, Upload,
-  ArrowUp, ArrowDown, EyeOff, Search, Gift, Dices, SpellCheck
+  ArrowUp, ArrowDown, EyeOff, Search, Gift, Dices, SpellCheck, Zap
 } from 'lucide-react';
 import MatchstickPuzzle from './components/MatchstickPuzzle';
+
 const PUZZLE_1000_INITIAL = [
   "d0_b", "d0_c",
   "d1_a", "d1_b", "d1_c", "d1_d", "d1_e", "d1_f",
@@ -24,7 +25,6 @@ const PUZZLE_7887_SOLUTION = [
   "d3_a", "d3_b", "d3_c"
 ];
 
-// Generic canvas templates for building any PDF puzzle
 const MATCHSTICK_TEMPLATES = {
   glass: {
     preset: "glass",
@@ -54,6 +54,7 @@ const MATCHSTICK_TEMPLATES = {
     moves: 3
   }
 };
+
 function shuffleWord(word) {
   const arr = word.toUpperCase().split('');
   for (let i = arr.length - 1; i > 0; i--) {
@@ -187,22 +188,6 @@ function DigitMatchstick({ digitIndex, activeSegments = [], onToggle, isInteract
         );
       })}
     </svg>
-  );
-}
-
-function MatchstickBoard({ currentSticks = [], onStickToggle, isInteractive = true }) {
-  return (
-    <div className="flex justify-center items-center gap-2 sm:gap-4 py-2 select-none">
-      {[0, 1, 2, 3].map((digitIdx) => (
-        <DigitMatchstick
-          key={digitIdx}
-          digitIndex={digitIdx}
-          activeSegments={currentSticks}
-          onToggle={onStickToggle}
-          isInteractive={isInteractive}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -377,7 +362,8 @@ export default function App() {
     mode: 'INDIVIDUAL',
     currentIndex: 0,
     timeRemaining: 20,
-    questionStartTime: 0
+    questionStartTime: 0,
+    speedScoring: false
   });
 
   const [participants, setParticipants] = useState({});
@@ -406,6 +392,12 @@ export default function App() {
   const activeQuestions = questions.filter(q => q.enabled !== false);
   const participantList = Object.values(participants);
 
+  // CORE SCORING CALCULATION
+  const calculatePoints = (basePoints, timeRemaining, isSpeedScoringEnabled) => {
+    if (!isSpeedScoringEnabled) return basePoints;
+    return basePoints + (timeRemaining * 10);
+  };
+
   useEffect(() => {
     if (!roomId) return;
 
@@ -428,7 +420,7 @@ export default function App() {
       setAnswers(snapshot.val() || {});
     });
 
-const unsubQ = onValue(qRef, (snapshot) => {
+    const unsubQ = onValue(qRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
         const list = Array.isArray(val) ? val : Object.values(val);
@@ -556,7 +548,8 @@ const unsubQ = onValue(qRef, (snapshot) => {
                 mode: 'INDIVIDUAL',
                 currentIndex: 0,
                 timeRemaining: 25,
-                questionStartTime: Date.now()
+                questionStartTime: Date.now(),
+                speedScoring: false
               },
               questions: INITIAL_QUESTIONS,
               participants: {},
@@ -644,7 +637,8 @@ const unsubQ = onValue(qRef, (snapshot) => {
       mode: game.mode,
       currentIndex: 0,
       timeRemaining: 20,
-      questionStartTime: Date.now()
+      questionStartTime: Date.now(),
+      speedScoring: game.speedScoring || false
     });
     set(ref(db, `rooms/${roomId}/participants`), {});
     set(ref(db, `rooms/${roomId}/answers`), {});
@@ -926,7 +920,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
     });
 
     if (isCorrect) {
-      const addedPoints = 150 + (game.timeRemaining * 10);
+      const addedPoints = calculatePoints(150, game.timeRemaining, game.speedScoring);
       const currentScore = participants[participantId]?.score || 0;
       update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
         score: currentScore + addedPoints
@@ -969,7 +963,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
     });
 
     if (isCorrect) {
-      const addedPoints = 120 + (game.timeRemaining * 10);
+      const addedPoints = calculatePoints(120, game.timeRemaining, game.speedScoring);
       const currentScore = participants[participantId]?.score || 0;
       update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
         score: currentScore + addedPoints
@@ -1007,7 +1001,12 @@ const unsubQ = onValue(qRef, (snapshot) => {
       setPersistedLines(updatedLines);
 
       const currentScore = participants[participantId]?.score || 0;
-      const pts = (curr.pointsPerWord || 100) + Math.floor(game.timeRemaining * 2);
+      const basePointsForWord = curr.pointsPerWord || 100;
+      
+      const pts = game.speedScoring 
+        ? basePointsForWord + Math.floor(game.timeRemaining * 2) 
+        : basePointsForWord;
+
       update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
         score: currentScore + pts
       });
@@ -1047,7 +1046,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
     });
 
     if (isCorrect) {
-      const addedPoints = 120 + (game.timeRemaining * 10);
+      const addedPoints = calculatePoints(120, game.timeRemaining, game.speedScoring);
       const currentScore = participants[participantId]?.score || 0;
       update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
         score: currentScore + addedPoints
@@ -1070,7 +1069,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
     });
 
     if (isCorrect) {
-      const addedPoints = 100 + (game.timeRemaining * 10);
+      const addedPoints = calculatePoints(100, game.timeRemaining, game.speedScoring);
       const currentScore = participants[participantId]?.score || 0;
       update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
         score: currentScore + addedPoints
@@ -1259,13 +1258,15 @@ const unsubQ = onValue(qRef, (snapshot) => {
             {/* LOCKED TOP HEADER */}
             <div className="absolute top-0 left-0 w-full px-6 pt-6 pb-4 border-b border-slate-800/60 bg-slate-950/95 backdrop-blur-md z-20 flex items-center justify-between shadow-sm">
               <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Q {game.currentIndex + 1} / {activeQuestions.length}</span>
-              <div className={`px-5 py-1.5 rounded-xl font-black text-2xl shadow-lg transition-all ${game.timeRemaining <= 5 ? 'bg-red-500/20 text-red-500 border border-red-500/50 animate-pulse scale-105' : 'bg-slate-800 border border-slate-700 text-amber-400'}`}>
+              <div className={`px-5 py-1.5 rounded-xl font-black text-2xl shadow-lg transition-all flex items-center gap-2 ${game.timeRemaining <= 5 ? 'bg-red-500/20 text-red-500 border border-red-500/50 animate-pulse scale-105' : 'bg-slate-800 border border-slate-700 text-amber-400'}`}>
+                {game.speedScoring && <Zap className="w-5 h-5 text-amber-400" />}
                 ⏱ {game.timeRemaining}s
               </div>
             </div>
 
             {/* ENLARGED CENTERED QUESTION */}
             <h3 className="text-2xl md:text-3xl font-extrabold mb-10 leading-relaxed text-center drop-shadow-xl text-white tracking-wide">{currQ.question}</h3>
+            
             {/* 4-DIGIT MATCHSTICK ENGINE */}
             {currQ.type === 'matchstick' && (
               <div className="space-y-4 my-2">
@@ -1293,23 +1294,23 @@ const unsubQ = onValue(qRef, (snapshot) => {
 
                 <div className="flex justify-center">
               <MatchstickPuzzle
-                    preset={currQ.preset || 'digits'}
-                    actionType="MOVE"
-                    currentSticks={userSticks}
-                    solutionSticks={currQ.solutionSticks || []}
-                    showSolution={game.status === 'REVEAL'}
-                    isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
-                    onSticksChange={(newSticks) => {
-                      if (newSticks.length < userSticks.length) {
-                        setUserSticks(newSticks);
-                        setStickInventory((prev) => prev + 1);
-                        setMovesCount((prev) => prev + 1);
-                      } else if (stickInventory > 0) {
-                        setUserSticks(newSticks);
-                        setStickInventory((prev) => prev - 1);
-                      }
-                    }}
-                  />
+                  preset={currQ.preset || 'digits'}
+                  actionType="MOVE"
+                  currentSticks={userSticks}
+                  solutionSticks={currQ.solutionSticks || []}
+                  showSolution={game.status === 'REVEAL'}
+                  isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
+                  onSticksChange={(newSticks) => {
+                    if (newSticks.length < userSticks.length) {
+                      setUserSticks(newSticks);
+                      setStickInventory((prev) => prev + 1);
+                      setMovesCount((prev) => prev + 1);
+                    } else if (stickInventory > 0) {
+                      setUserSticks(newSticks);
+                      setStickInventory((prev) => prev - 1);
+                    }
+                  }}
+                />
                 </div>
 
                 <p className="text-[11px] text-slate-400 text-center">
@@ -2170,6 +2171,23 @@ const unsubQ = onValue(qRef, (snapshot) => {
               </div>
 
               <div className="space-y-3">
+                {/* SPEED SCORING TOGGLE */}
+                <div className="flex items-center justify-between p-4 bg-slate-800/80 rounded-xl mb-4 border border-slate-700/50 shadow-inner">
+                  <div className="text-left flex-1 mr-3">
+                    <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                      <Zap className={`w-4 h-4 ${game.speedScoring ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
+                      Speed Bonus
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-1 leading-tight">Award +10 pts for every second remaining on the clock.</p>
+                  </div>
+                  <button
+                    onClick={() => update(ref(db, `rooms/${roomId}/game`), { speedScoring: !game.speedScoring })}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${game.speedScoring ? 'bg-amber-500' : 'bg-slate-700'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${game.speedScoring ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
                 {game.status === 'LOBBY' && (
                   <button
                     onClick={startQuiz}
@@ -2182,7 +2200,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
                 {game.status === 'QUESTION' && (
                   <button
                     onClick={() => update(ref(db, `rooms/${roomId}/game`), { status: 'REVEAL', timeRemaining: 0 })}
-                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold"
+                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold shadow-lg"
                   >
                     Reveal Solution
                   </button>
@@ -2191,7 +2209,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
                 {game.status === 'REVEAL' && (
                   <button
                     onClick={showLeaderboard}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg"
                   >
                     <Trophy className="w-4 h-4" /> Show Standings
                   </button>
@@ -2200,7 +2218,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
                 {game.status === 'LEADERBOARD' && (
                   <button
                     onClick={nextQuestion}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg"
                   >
                     Next Question <ChevronRight className="w-4 h-4" />
                   </button>
@@ -2208,7 +2226,7 @@ const unsubQ = onValue(qRef, (snapshot) => {
 
                 <button
                   onClick={triggerLuckyDraw}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98]"
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/25 transition active:scale-[0.98] mt-6"
                 >
                   <Gift className="w-5 h-5 fill-current" /> Run Lucky Draw ({participantList.length} Players)
                 </button>
