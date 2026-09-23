@@ -1253,19 +1253,19 @@ const unsubQ = onValue(qRef, (snapshot) => {
       }
 
       return (
-       <div className="min-h-[100dvh] bg-slate-950 text-white flex flex-col p-5 pb-8">
-          <div className="flex-1 flex flex-col w-full max-w-md mx-auto">
+       <div className="relative min-h-[100dvh] bg-slate-950 text-white flex flex-col p-6 pb-12 pt-28">
+          <div className="flex-1 flex flex-col justify-center w-full max-w-md mx-auto">
             
-            {/* ENLARGED TOP HEADER */}
-            <div className="flex items-center justify-between pb-4 border-b-2 border-slate-800/80 mb-auto shrink-0 mt-2">
-              <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Q {game.currentIndex + 1} / {activeQuestions.length}</span>
-              <div className={`px-6 py-3 rounded-2xl font-black text-2xl shadow-xl transition-all ${game.timeRemaining <= 5 ? 'bg-red-900/40 text-red-500 border border-red-500/50 animate-pulse scale-105' : 'bg-slate-800 text-amber-400 border border-slate-600'}`}>
+            {/* LOCKED TOP HEADER */}
+            <div className="absolute top-0 left-0 w-full px-6 pt-6 pb-4 border-b border-slate-800/60 bg-slate-950/95 backdrop-blur-md z-20 flex items-center justify-between shadow-sm">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Q {game.currentIndex + 1} / {activeQuestions.length}</span>
+              <div className={`px-5 py-1.5 rounded-xl font-black text-2xl shadow-lg transition-all ${game.timeRemaining <= 5 ? 'bg-red-500/20 text-red-500 border border-red-500/50 animate-pulse scale-105' : 'bg-slate-800 border border-slate-700 text-amber-400'}`}>
                 ⏱ {game.timeRemaining}s
               </div>
             </div>
 
             {/* ENLARGED CENTERED QUESTION */}
-            <h3 className="text-2xl font-extrabold mb-8 mt-auto leading-normal text-center drop-shadow-md">{currQ.question}</h3>
+            <h3 className="text-2xl md:text-3xl font-extrabold mb-10 leading-relaxed text-center drop-shadow-xl text-white tracking-wide">{currQ.question}</h3>
             {/* 4-DIGIT MATCHSTICK ENGINE */}
             {currQ.type === 'matchstick' && (
               <div className="space-y-4 my-2">
