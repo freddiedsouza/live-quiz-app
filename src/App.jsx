@@ -1569,16 +1569,27 @@ const unsubQ = onValue(qRef, (snapshot) => {
       );
     }
 
+    if (game.status === 'FINISHED') {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col justify-center text-center">
+          <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+          <h2 className="text-3xl font-extrabold mb-2">Quiz Finished!</h2>
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 my-6">
+            <p className="text-slate-400 text-sm">Your Total Score</p>
+            <p className="text-5xl font-black text-indigo-400 my-2">
+              {participants[playerName.trim().toLowerCase().replace(/\s+/g, '_')]?.score || 0}
+            </p>
+            <p className="text-xs text-slate-500">Check the main projector screen for final rankings!</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col justify-center text-center">
-        <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
-        <h2 className="text-3xl font-extrabold mb-2">Quiz Finished!</h2>
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 my-6">
-          <p className="text-slate-400 text-sm">Your Total Score</p>
-          <p className="text-5xl font-black text-indigo-400 my-2">
-            {participants[playerName.trim().toLowerCase().replace(/\s+/g, '_')]?.score || 0}
-          </p>
-          <p className="text-xs text-slate-500">Check the main projector screen for final rankings!</p>
+      <div className="min-h-[100dvh] bg-slate-950 text-white p-6 flex flex-col justify-center text-center">
+        <div className="bg-slate-900/50 p-8 rounded-3xl border border-indigo-500/30 shadow-xl">
+          <p className="text-2xl font-black text-indigo-400 mb-3 animate-pulse">Eyes on the screen! 👀</p>
+          <p className="text-slate-400 text-sm font-semibold">Waiting for Freddie to load the next round...</p>
         </div>
       </div>
     );
