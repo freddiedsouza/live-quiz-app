@@ -1253,17 +1253,19 @@ const unsubQ = onValue(qRef, (snapshot) => {
       }
 
       return (
-        <div className="min-h-screen bg-slate-950 text-white flex flex-col p-4 pb-8 justify-between">
-          <div>
-            <div className="flex items-center justify-between py-2 border-b border-slate-800 mb-3">
-              <span className="text-xs font-semibold text-slate-400">Q {game.currentIndex + 1} of {activeQuestions.length}</span>
-              <div className={`px-3 py-1 rounded-full font-bold text-sm ${game.timeRemaining <= 5 ? 'bg-red-500/20 text-red-400 animate-bounce' : 'bg-slate-800 text-slate-200'}`}>
+       <div className="min-h-[100dvh] bg-slate-950 text-white flex flex-col p-5 pb-8">
+          <div className="flex-1 flex flex-col w-full max-w-md mx-auto">
+            
+            {/* ENLARGED TOP HEADER */}
+            <div className="flex items-center justify-between pb-4 border-b-2 border-slate-800/80 mb-auto shrink-0 mt-2">
+              <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Q {game.currentIndex + 1} / {activeQuestions.length}</span>
+              <div className={`px-6 py-3 rounded-2xl font-black text-2xl shadow-xl transition-all ${game.timeRemaining <= 5 ? 'bg-red-900/40 text-red-500 border border-red-500/50 animate-pulse scale-105' : 'bg-slate-800 text-amber-400 border border-slate-600'}`}>
                 ⏱ {game.timeRemaining}s
               </div>
             </div>
 
-            <h3 className="text-base font-bold mb-3 leading-snug">{currQ.question}</h3>
-
+            {/* ENLARGED CENTERED QUESTION */}
+            <h3 className="text-2xl font-extrabold mb-8 mt-auto leading-normal text-center drop-shadow-md">{currQ.question}</h3>
             {/* 4-DIGIT MATCHSTICK ENGINE */}
             {currQ.type === 'matchstick' && (
               <div className="space-y-4 my-2">
