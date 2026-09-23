@@ -428,10 +428,13 @@ export default function App() {
       setAnswers(snapshot.val() || {});
     });
 
-    const unsubQ = onValue(qRef, (snapshot) => {
+const unsubQ = onValue(qRef, (snapshot) => {
       const val = snapshot.val();
-      if (val && Array.isArray(val) && val.length > 0) {
-        setQuestions(val);
+      if (val) {
+        const list = Array.isArray(val) ? val : Object.values(val);
+        if (list.length > 0) {
+          setQuestions(list);
+        }
       }
     });
 
@@ -2214,6 +2217,27 @@ export default function App() {
                     {currentJoinUrl}
                   </p>
                 </div>
+        <div className="pt-4 border-t border-slate-850 w-full">
+                  <div className="text-xs uppercase text-slate-400 font-bold tracking-wider mb-3">
+                    Connected Participants ({participantList.length})
+                  </div>
+                  
+                  {participantList.length === 0 ? (
+                    <p className="text-slate-600 text-sm italic">Waiting for players to join...</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2.5 justify-center max-h-44 overflow-y-auto px-2">
+                      {participantList.map((p, i) => (
+                        <span 
+                          key={p.id || i}
+                          className="px-3 py-1.5 bg-slate-850 border border-slate-750 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          {p.name || 'Anonymous'} {p.team ? `[${p.team}]` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>        
               </div>
             )}
 
