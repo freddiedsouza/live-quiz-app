@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY", // keep your existing apiKey line here
+  apiKey: "AIzaSyCuTTdT9k7KVlOhDJEyUDrrxCH6YGau_aU", // keep your existing apiKey line here
   authDomain: "live-quiz-app-b7d22.firebaseapp.com",
   databaseURL: "https://live-quiz-app-b7d22-default-rtdb.firebaseio.com",
   projectId: "live-quiz-app-b7d22",
