@@ -10,6 +10,19 @@ import {
   ArrowUp, ArrowDown, EyeOff, Search, Gift, Dices, SpellCheck
 } from 'lucide-react';
 import MatchstickPuzzle from './components/MatchstickPuzzle';
+const PUZZLE_1000_INITIAL = [
+  "d0_b", "d0_c",
+  "d1_a", "d1_b", "d1_c", "d1_d", "d1_e", "d1_f",
+  "d2_a", "d2_b", "d2_c", "d2_d", "d2_e", "d2_f",
+  "d3_a", "d3_b", "d3_c", "d3_d", "d3_e", "d3_f"
+];
+
+const PUZZLE_7887_SOLUTION = [
+  "d0_a", "d0_b", "d0_c",
+  "d1_a", "d1_b", "d1_c", "d1_d", "d1_e", "d1_f", "d1_g",
+  "d2_a", "d2_b", "d2_c", "d2_d", "d2_e", "d2_f", "d2_g",
+  "d3_a", "d3_b", "d3_c"
+];
 
 // Generic canvas templates for building any PDF puzzle
 const MATCHSTICK_TEMPLATES = {
@@ -1950,7 +1963,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* MCQ */}
+             {/* MCQ */}
               {qType === 'mcq' && (
                 <div className="space-y-2">
                   {qOptions.map((opt, i) => (
@@ -1961,6 +1974,7 @@ export default function App() {
                       <input
                         type="text"
                         value={opt}
+                        placeholder={`Option ${String.fromCharCode(65 + i)}`}
                         onChange={(e) => {
                           const updated = [...qOptions];
                           updated[i] = e.target.value;
@@ -1971,12 +1985,38 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setQCorrectIndex(i)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold ${qCorrectIndex === i ? 'bg-emerald-500 text-black' : 'bg-slate-800 text-slate-400'}`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${qCorrectIndex === i ? 'bg-emerald-500 text-black' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
                       >
                         {qCorrectIndex === i ? 'Correct' : 'Mark'}
                       </button>
+                      {qOptions.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = qOptions.filter((_, idx) => idx !== i);
+                            setQOptions(updated);
+                            if (qCorrectIndex >= updated.length || qCorrectIndex === i) {
+                              setQCorrectIndex(0);
+                            }
+                          }}
+                          className="px-2 py-1 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-800 text-xs font-bold transition"
+                          title="Remove option"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   ))}
+
+                  {qOptions.length < 6 && (
+                    <button
+                      type="button"
+                      onClick={() => setQOptions([...qOptions, ''])}
+                      className="w-full py-2 border border-dashed border-slate-750 hover:border-indigo-500 text-slate-400 hover:text-indigo-400 rounded-xl font-bold text-xs transition"
+                    >
+                      + Add Choice
+                    </button>
+                  )}
                 </div>
               )}
 
