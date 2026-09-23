@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY, line here
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "live-quiz-app-b7d22.firebaseapp.com",
   databaseURL: "https://live-quiz-app-b7d22-default-rtdb.firebaseio.com",
   projectId: "live-quiz-app-b7d22",
