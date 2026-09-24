@@ -18,11 +18,11 @@ const PUZZLE_1000_INITIAL = [
   "d3_a", "d3_b", "d3_c", "d3_d", "d3_e", "d3_f"
 ];
 
-const PUZZLE_7887_SOLUTION = [
+const PUZZLE_7950_SOLUTION = [
   "d0_a", "d0_b", "d0_c",
-  "d1_a", "d1_b", "d1_c", "d1_d", "d1_e", "d1_f", "d1_g",
-  "d2_a", "d2_b", "d2_c", "d2_d", "d2_e", "d2_f", "d2_g",
-  "d3_a", "d3_b", "d3_c"
+  "d1_a", "d1_b", "d1_c", "d1_d", "d1_f", "d1_g",
+  "d2_a", "d2_c", "d2_d", "d2_f", "d2_g",
+  "d3_a", "d3_b", "d3_c", "d3_d", "d3_e", "d3_f"
 ];
 
 const MATCHSTICK_TEMPLATES = {
@@ -55,6 +55,47 @@ const MATCHSTICK_TEMPLATES = {
   }
 };
 
+const DIGIT_MAP = {
+  "a,b,c,d,e,f": 0,
+  "b,c": 1,
+  "a,b,d,e,g": 2,
+  "a,b,c,d,g": 3,
+  "b,c,f,g": 4,
+  "a,c,d,f,g": 5,
+  "a,c,d,e,f,g": 6,
+  "a,b,c": 7,
+  "a,b,c,d,e,f,g": 8,
+  "a,b,c,d,f,g": 9
+};
+
+function parseMatchstickNumber(sticks) {
+  const digitSegments = { d0: [], d1: [], d2: [], d3: [] };
+  sticks.forEach(s => {
+    if (!s.startsWith('d')) return;
+    const parts = s.split('_');
+    if (parts.length === 2 && digitSegments[parts[0]]) {
+      digitSegments[parts[0]].push(parts[1]);
+    }
+  });
+
+  let numStr = "";
+  for (let i = 0; i < 4; i++) {
+    const segs = digitSegments[`d${i}`].sort().join(',');
+    if (segs === "") {
+      numStr += " "; 
+      continue;
+    }
+    let digit = null;
+    for (const [key, val] of Object.entries(DIGIT_MAP)) {
+      if (key === segs) digit = val;
+    }
+    if (digit === null) return -1;
+    numStr += digit;
+  }
+  if (numStr.length !== 4 || numStr.includes(" ")) return -1;
+  return parseInt(numStr, 10);
+}
+
 function shuffleWord(word) {
   const arr = word.toUpperCase().split('');
   for (let i = arr.length - 1; i > 0; i--) {
@@ -67,15 +108,24 @@ function shuffleWord(word) {
 
 const INITIAL_QUESTIONS = [
   {
+    id: "q_riddle_1",
+    type: "riddle",
+    enabled: true,
+    question: "I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?",
+    acceptedAnswers: ["echo", "an echo"],
+    timeLimit: 30,
+    explanation: "An echo is a sound wave reflection, meaning it 'speaks' and 'hears' without physical form!"
+  },
+  {
     id: "q_match_1",
     type: "matchstick",
     enabled: true,
-    question: "Move 3 sticks and make the highest 4-digit number from 1000!",
+    question: "Move exactly 3 sticks to make the HIGHEST 4-digit number possible!",
     timeLimit: 45,
     maxMoves: 3,
     initialSticks: PUZZLE_1000_INITIAL,
-    solutionSticks: PUZZLE_7887_SOLUTION,
-    explanation: "Take 3 sticks from the last digit (0 becomes 7). Place 1 stick on the first digit (1 becomes 7), and place the remaining 2 sticks in the centers of the two middle zeros (turning both into 8). The highest number is 7887!"
+    solutionSticks: PUZZLE_7950_SOLUTION,
+    explanation: "7950 is the absolute limit. Change the first '0' to a '9', the second '0' to a '5', and place those 3 harvested sticks on the '1' to make it a '7' and to complete the middles of the '9' and '5'."
   },
   {
     id: "q_jumble_1",
@@ -122,16 +172,6 @@ const INITIAL_QUESTIONS = [
     correctIndex: 0,
     timeLimit: 15,
     explanation: "True! Water particles are packed much more densely than air molecules."
-  },
-  {
-    id: "q_2",
-    type: "mcq",
-    enabled: true,
-    question: "Which planet in our solar system has the most moons?",
-    options: ["Jupiter", "Saturn", "Uranus", "Neptune"],
-    correctIndex: 1,
-    timeLimit: 20,
-    explanation: "Saturn has 146 confirmed moons, overtaking Jupiter."
   }
 ];
 
@@ -337,7 +377,7 @@ export default function App() {
   const [qImage1, setQImage1] = useState("");
   const [qImage2, setQImage2] = useState("");
   const [qExplanation, setQExplanation] = useState("");
-  const [qAcceptedAnswers, setQAcceptedAnswers] = useState("seesaw, see saw");
+  const [qAcceptedAnswers, setQAcceptedAnswers] = useState("");
 
   const [qJumbleTarget, setQJumbleTarget] = useState("PLANET");
   const [qJumbleScrambled, setQJumbleScrambled] = useState("TNAPEL");
@@ -352,7 +392,7 @@ export default function App() {
 
   const [qMatchPreset, setQMatchPreset] = useState("digits");
   const [qMatchInitial, setQMatchInitial] = useState(PUZZLE_1000_INITIAL);
-  const [qMatchSolution, setQMatchSolution] = useState(PUZZLE_7887_SOLUTION);
+  const [qMatchSolution, setQMatchSolution] = useState(PUZZLE_7950_SOLUTION);
   const [qMatchMaxMoves, setQMatchMaxMoves] = useState(3);
   const [matchEditTarget, setMatchEditTarget] = useState('initial');
   const [statusMessage, setStatusMessage] = useState("");
@@ -392,7 +432,6 @@ export default function App() {
   const activeQuestions = questions.filter(q => q.enabled !== false);
   const participantList = Object.values(participants);
 
-  // CORE SCORING CALCULATION
   const calculatePoints = (basePoints, timeRemaining, isSpeedScoringEnabled) => {
     if (!isSpeedScoringEnabled) return basePoints;
     return basePoints + (timeRemaining * 10);
@@ -632,17 +671,19 @@ export default function App() {
   };
 
   const resetRoom = () => {
-    set(ref(db, `rooms/${roomId}/game`), {
-      status: 'LOBBY',
-      mode: game.mode,
-      currentIndex: 0,
-      timeRemaining: 20,
-      questionStartTime: Date.now(),
-      speedScoring: game.speedScoring || false
-    });
-    set(ref(db, `rooms/${roomId}/participants`), {});
-    set(ref(db, `rooms/${roomId}/answers`), {});
-    set(ref(db, `rooms/${roomId}/luckyWinner`), null);
+    if(window.confirm("WARNING: This will permanently delete all players, teams, and scores for the current session. Do you want to continue?")) {
+      set(ref(db, `rooms/${roomId}/game`), {
+        status: 'LOBBY',
+        mode: game.mode,
+        currentIndex: 0,
+        timeRemaining: 20,
+        questionStartTime: Date.now(),
+        speedScoring: game.speedScoring || false
+      });
+      set(ref(db, `rooms/${roomId}/participants`), {});
+      set(ref(db, `rooms/${roomId}/answers`), {});
+      set(ref(db, `rooms/${roomId}/luckyWinner`), null);
+    }
   };
 
   const resetForm = () => {
@@ -665,7 +706,7 @@ export default function App() {
     setActiveWordIndex(0);
     setBuilderDraftLine(null);
     setQMatchInitial(PUZZLE_1000_INITIAL);
-    setQMatchSolution(PUZZLE_7887_SOLUTION);
+    setQMatchSolution(PUZZLE_7950_SOLUTION);
     setQMatchMaxMoves(3);
     setMatchEditTarget('initial');
   };
@@ -681,10 +722,11 @@ export default function App() {
     setQImage1(q.image1 || "");
     setQImage2(q.image2 || "");
     setQExplanation(q.explanation || "");
+    
     if (q.type === 'matchstick') {
       setQMatchPreset(q.preset || "digits");
       setQMatchInitial(q.initialSticks || PUZZLE_1000_INITIAL);
-      setQMatchSolution(q.solutionSticks || PUZZLE_7887_SOLUTION);
+      setQMatchSolution(q.solutionSticks || PUZZLE_7950_SOLUTION);
       setQMatchMaxMoves(q.maxMoves || 3);
     }
     if (q.type === 'jumble') {
@@ -695,7 +737,7 @@ export default function App() {
       setQTargetWords(q.targetWords || []);
       setActiveWordIndex(0);
     }
-    if (q.type === 'word') {
+    if (q.type === 'word' || q.type === 'riddle') {
       setQAcceptedAnswers(Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join(", ") : "");
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -763,9 +805,13 @@ export default function App() {
       setQTimeLimit(45);
     } else if (type === 'word') {
       setQTimeLimit(25);
+      if (!qText) setQText("GUESS THE WORD: Combine both pictures to form a compound word!");
+    } else if (type === 'riddle') {
+      setQTimeLimit(30);
+      if (!qText) setQText("I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?");
     } else if (type === 'matchstick') {
       setQTimeLimit(45);
-      if (!qText) setQText("Move 3 sticks and make the highest 4-digit number from 1000!");
+      if (!qText) setQText("Move exactly 3 sticks to make the HIGHEST 4-digit number possible!");
     }
   };
 
@@ -808,14 +854,14 @@ export default function App() {
       finalOptions = qTargetWords.map(w => w.word);
     } else if (qType === 'matchstick') {
       finalOptions = ["Matchstick Puzzle"];
-    } else if (qType === 'word') {
+    } else if (qType === 'word' || qType === 'riddle') {
       finalOptions = ["Typed Answer"];
       accepted = qAcceptedAnswers
         .split(',')
         .map(a => a.trim().toLowerCase())
         .filter(a => a.length > 0);
       if (accepted.length === 0) {
-        setStatusMessage("Error: Provide at least one accepted answer for Guess the Word.");
+        setStatusMessage(`Error: Provide at least one accepted answer for ${qType === 'riddle' ? 'Riddle' : 'Guess the Word'}.`);
         return;
       }
     } else {
@@ -844,7 +890,7 @@ export default function App() {
       scrambledLetters: qType === 'jumble' ? (qJumbleScrambled.trim().toUpperCase() || shuffleWord(qJumbleTarget)) : null,
       targetWords: qType === 'wordsearch' ? qTargetWords : null,
       pointsPerWord: 100,
-      acceptedAnswers: qType === 'word' ? accepted : null,
+      acceptedAnswers: (qType === 'word' || qType === 'riddle') ? accepted : null,
       initialSticks: qType === 'matchstick' ? qMatchInitial : null,
       solutionSticks: qType === 'matchstick' ? qMatchSolution : null,
       validSolutions: qType === 'matchstick' ? [qMatchSolution] : null,
@@ -898,32 +944,59 @@ export default function App() {
     const curr = activeQuestions[game.currentIndex];
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
 
-    const sortedUser = [...userSticks].sort();
     let isCorrect = false;
+    let finalAnswerText = "SUBMITTED";
+    let pointsToAward = 0;
 
-    if (curr.solutionSticks && Array.isArray(curr.solutionSticks)) {
-      const sortedSol = [...curr.solutionSticks].sort();
-      isCorrect = JSON.stringify(sortedSol) === JSON.stringify(sortedUser);
-    } else if (curr.validSolutions && Array.isArray(curr.validSolutions)) {
-      isCorrect = curr.validSolutions.some(sol => {
-        const sortedSol = [...sol].sort();
-        return JSON.stringify(sortedSol) === JSON.stringify(sortedUser);
-      });
+    if (curr.preset === 'digits') {
+      const sticksMoved = (curr.initialSticks || []).filter(s => !userSticks.includes(s)).length;
+      const targetMoves = curr.maxMoves || 3;
+      
+      if (sticksMoved !== targetMoves || userSticks.length !== (curr.initialSticks || []).length) {
+        finalAnswerText = `Failed (Must move exactly ${targetMoves} sticks)`;
+        isCorrect = false;
+      } else {
+        const submittedNum = parseMatchstickNumber(userSticks);
+        if (submittedNum > 0) {
+          isCorrect = true;
+          finalAnswerText = `${submittedNum} (Valid Shape)`;
+          
+          const base = calculatePoints(150, game.timeRemaining, game.speedScoring);
+          const numberBonus = Math.floor(submittedNum / 10);
+          pointsToAward = base + numberBonus;
+        } else {
+          finalAnswerText = "Invalid Number Shape";
+        }
+      }
+    } else {
+      const sortedUser = [...userSticks].sort();
+      if (curr.solutionSticks && Array.isArray(curr.solutionSticks)) {
+        const sortedSol = [...curr.solutionSticks].sort();
+        isCorrect = JSON.stringify(sortedSol) === JSON.stringify(sortedUser);
+      } else if (curr.validSolutions && Array.isArray(curr.validSolutions)) {
+        isCorrect = curr.validSolutions.some(sol => {
+          const sortedSol = [...sol].sort();
+          return JSON.stringify(sortedSol) === JSON.stringify(sortedUser);
+        });
+      }
+      finalAnswerText = isCorrect ? "SOLVED" : "INCORRECT";
+      if (isCorrect) {
+        pointsToAward = calculatePoints(150, game.timeRemaining, game.speedScoring);
+      }
     }
 
     setSelectedAnswer("MATCHSTICK_SUBMITTED");
 
     set(ref(db, `rooms/${roomId}/answers/${participantId}`), {
-      answer: isCorrect ? "7887 (SOLVED)" : "SUBMITTED",
+      answer: finalAnswerText,
       isCorrect,
       timeRemaining: game.timeRemaining
     });
 
-    if (isCorrect) {
-      const addedPoints = calculatePoints(150, game.timeRemaining, game.speedScoring);
+    if (isCorrect && pointsToAward > 0) {
       const currentScore = participants[participantId]?.score || 0;
       update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
-        score: currentScore + addedPoints
+        score: currentScore + pointsToAward
       });
     }
   };
@@ -1116,7 +1189,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight">Live Interactive Quiz</h1>
-            <p className="text-slate-400 mt-2">Matchstick Puzzles, Jumble, Word Search & Riddles</p>
+            <p className="text-slate-400 mt-2">Matchstick Puzzles, Riddles, Jumble, Word Search</p>
           </div>
 
           <div className="space-y-4 pt-4">
@@ -1276,7 +1349,7 @@ export default function App() {
                     <b className="text-amber-400 text-sm">{stickInventory}</b>
                   </div>
                   <div>
-                    <span className="text-slate-400">Max Moves: </span>
+                    <span className="text-slate-400">Moves Allowed: </span>
                     <b className="text-indigo-400">{currQ.maxMoves || 3}</b>
                   </div>
                   <button
@@ -1448,22 +1521,26 @@ export default function App() {
               </div>
             )}
 
-            {/* GUESS THE WORD */}
-            {currQ.type === 'word' && (
+            {/* GUESS THE WORD & RIDDLES */}
+            {(currQ.type === 'word' || currQ.type === 'riddle') && (
               <div className="space-y-4 my-2">
-                <div className="flex items-center justify-center gap-2 bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
-                  {currQ.image1 && (
-                    <div className="flex-1 bg-white p-2 rounded-xl flex items-center justify-center aspect-square max-h-36 overflow-hidden">
-                      <img src={currQ.image1} alt="Clue 1" className="max-h-full object-contain" />
-                    </div>
-                  )}
-                  {currQ.image1 && currQ.image2 && <span className="text-2xl font-black text-indigo-400">+</span>}
-                  {currQ.image2 && (
-                    <div className="flex-1 bg-white p-2 rounded-xl flex items-center justify-center aspect-square max-h-36 overflow-hidden">
-                      <img src={currQ.image2} alt="Clue 2" className="max-h-full object-contain" />
-                    </div>
-                  )}
-                </div>
+                
+                {/* Images are only rendered if it's the Word format and images exist */}
+                {currQ.type === 'word' && (
+                  <div className="flex items-center justify-center gap-2 bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
+                    {currQ.image1 && (
+                      <div className="flex-1 bg-white p-2 rounded-xl flex items-center justify-center aspect-square max-h-36 overflow-hidden">
+                        <img src={currQ.image1} alt="Clue 1" className="max-h-full object-contain" />
+                      </div>
+                    )}
+                    {currQ.image1 && currQ.image2 && <span className="text-2xl font-black text-indigo-400">+</span>}
+                    {currQ.image2 && (
+                      <div className="flex-1 bg-white p-2 rounded-xl flex items-center justify-center aspect-square max-h-36 overflow-hidden">
+                        <img src={currQ.image2} alt="Clue 2" className="max-h-full object-contain" />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {game.status === 'QUESTION' && selectedAnswer === null && (
                   <form onSubmit={submitWordAnswer} className="space-y-3">
@@ -1480,7 +1557,7 @@ export default function App() {
                       type="submit"
                       className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 font-extrabold rounded-2xl text-base text-white shadow-lg shadow-indigo-600/30 transition active:scale-[0.98]"
                     >
-                      Submit Word
+                      Submit Answer
                     </button>
                   </form>
                 )}
@@ -1540,10 +1617,10 @@ export default function App() {
 
           {game.status === 'REVEAL' && (
             <div className="mt-4 p-4 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 animate-fade-in text-left">
-              {currQ.type === 'matchstick' && (
+              {currQ.type === 'matchstick' && currQ.preset === 'digits' && (
                 <div className="mb-2">
-                  <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Solved Formation:</span>
-                  <p className="text-xl font-black text-white">7887</p>
+                  <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Highest Possible Valid Number:</span>
+                  <p className="text-2xl font-black text-white">7950</p>
                 </div>
               )}
               {currQ.type === 'jumble' && (
@@ -1552,9 +1629,9 @@ export default function App() {
                   <p className="text-2xl font-black text-white uppercase tracking-wider">{currQ.targetWord}</p>
                 </div>
               )}
-              {currQ.type === 'word' && (
+              {(currQ.type === 'word' || currQ.type === 'riddle') && (
                 <div className="mb-2">
-                  <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Correct Word:</span>
+                  <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Correct Answer:</span>
                   <p className="text-xl font-black text-white uppercase">{currQ.acceptedAnswers?.[0]}</p>
                 </div>
               )}
@@ -1685,12 +1762,13 @@ export default function App() {
             <form onSubmit={handleSaveQuestion} className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Format</label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                <div className="grid grid-cols-3 sm:grid-cols-7 gap-1.5">
                   {[
                     { id: 'matchstick', label: 'Matchstick' },
                     { id: 'jumble', label: 'Jumble' },
                     { id: 'wordsearch', label: 'Word Search' },
                     { id: 'word', label: 'Guess Word' },
+                    { id: 'riddle', label: 'Riddle' },
                     { id: 'boolean', label: 'True/False' },
                     { id: 'mcq', label: 'MCQ' }
                   ].map(tab => (
@@ -1958,6 +2036,22 @@ export default function App() {
                     <input
                       type="text"
                       placeholder="e.g. seesaw, see saw"
+                      value={qAcceptedAnswers}
+                      onChange={(e) => setQAcceptedAnswers(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* RIDDLE BUILDER */}
+              {qType === 'riddle' && (
+                <div className="p-3.5 bg-slate-850 border border-slate-800 rounded-xl space-y-3">
+                  <div>
+                    <label className="block text-slate-400 font-semibold mb-1">Accepted Answers (Comma-separated)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. echo, an echo, the echo"
                       value={qAcceptedAnswers}
                       onChange={(e) => setQAcceptedAnswers(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"
@@ -2312,9 +2406,9 @@ export default function App() {
                       showSolution={game.status === 'REVEAL'}
                       isInteractive={false}
                     />
-                    {game.status === 'REVEAL' && (
+                    {game.status === 'REVEAL' && currQ.preset === 'digits' && (
                       <p className="text-emerald-400 font-bold tracking-wider text-base mt-2">
-                        ✓ Highest 4-Digit Number: 7887
+                        ✓ Highest Valid Mathematical Number: 7950
                       </p>
                     )}
                   </div>
