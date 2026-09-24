@@ -25,7 +25,30 @@ const PUZZLE_7950_SOLUTION = [
   "d3_a", "d3_b", "d3_c", "d3_d", "d3_e", "d3_f"
 ];
 
+const EQUATION_192_INITIAL = [
+  "d1_b", "d1_c",
+  "op_h", "op_v",
+  "d2_a", "d2_b", "d2_c", "d2_d", "d2_f", "d2_g",
+  "eq_t", "eq_b",
+  "d3_a", "d3_b", "d3_d", "d3_e", "d3_g"
+];
+
+const EQUATION_192_SOLUTION = [
+  "sign_minus",
+  "d1_b", "d1_c",
+  "op_h", "op_v",
+  "d2_a", "d2_b", "d2_c", "d2_d", "d2_g",
+  "eq_t", "eq_b",
+  "d3_a", "d3_b", "d3_d", "d3_e", "d3_g"
+];
+
 const MATCHSTICK_TEMPLATES = {
+  equation: {
+    preset: "equation",
+    initial: EQUATION_192_INITIAL,
+    solution: EQUATION_192_SOLUTION,
+    moves: 1
+  },
   glass: {
     preset: "glass",
     initial: ["g_left_up", "g_right_up", "g_bar_mid", "g_stem_down"],
@@ -128,74 +151,59 @@ const INITIAL_QUESTIONS = [
     explanation: "7950 is the absolute limit. Change the first '0' to a '9', the second '0' to a '5', and place those 3 harvested sticks on the '1' to make it a '7' and to complete the middles of the '9' and '5'."
   },
   {
-    id: "q_jumble_1",
-    type: "jumble",
+    id: "q_equation_1",
+    type: "matchstick",
+    preset: "equation",
     enabled: true,
-    question: "UNSCRAMBLE: Tap the letters in the correct order to spell the mystery word!",
-    targetWord: "PLANET",
-    scrambledLetters: "TNAPEL",
-    timeLimit: 30,
-    explanation: "The unscrambled word is PLANET!"
-  },
-  {
-    id: "q_search_multi_1",
-    type: "wordsearch",
-    enabled: true,
-    question: "WORD SEARCH: Find the 3 hidden space words in the puzzle!",
-    imageUrl: "https://images.unsplash.com/photo-1543722530-d2c3201371e7?auto=format&fit=crop&w=600&q=80",
-    targetWords: [
-      { id: "w_1", word: "SUN", highlight: { x1: 20, y1: 25, x2: 45, y2: 25 } },
-      { id: "w_2", word: "MOON", highlight: { x1: 20, y1: 50, x2: 60, y2: 50 } },
-      { id: "w_3", word: "STAR", highlight: { x1: 20, y1: 75, x2: 60, y2: 75 } }
-    ],
-    pointsPerWord: 100,
+    question: "Move exactly 1 stick to fix the equation!",
     timeLimit: 45,
-    explanation: "SUN, MOON, and STAR were hidden in the puzzle rows!"
-  },
-  {
-    id: "q_word_1",
-    type: "word",
-    enabled: true,
-    question: "GUESS THE WORD: Combine both pictures to form a compound word!",
-    image1: "https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=400&q=80",
-    image2: "https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?auto=format&fit=crop&w=400&q=80",
-    acceptedAnswers: ["seesaw", "see saw", "see-saw"],
-    timeLimit: 25,
-    explanation: "Picture 1 = SEE (Eyes) + Picture 2 = SAW (Tool) -> SEESAW!"
-  },
-  {
-    id: "q_1",
-    type: "boolean",
-    enabled: true,
-    question: "Sound travels faster in water than in air.",
-    options: ["True", "False"],
-    correctIndex: 0,
-    timeLimit: 15,
-    explanation: "True! Water particles are packed much more densely than air molecules."
+    maxMoves: 1,
+    initialSticks: EQUATION_192_INITIAL,
+    solutionSticks: EQUATION_192_SOLUTION,
+    explanation: "Take the top-left stick from the 9 to make it a 3. Place that stick horizontally in front of the 1. The equation becomes -1 + 3 = 2."
   }
 ];
 
-function DigitMatchstick({ digitIndex, activeSegments = [], onToggle, isInteractive = true }) {
-  const segments = [
-    { id: 'a', x: 14, y: 6, w: 52, h: 10, isH: true },
-    { id: 'f', x: 6, y: 14, w: 10, h: 52, isH: false },
-    { id: 'b', x: 64, y: 14, w: 10, h: 52, isH: false },
-    { id: 'g', x: 14, y: 64, w: 52, h: 10, isH: true },
-    { id: 'e', x: 6, y: 72, w: 10, h: 52, isH: false },
-    { id: 'c', x: 64, y: 72, w: 10, h: 52, isH: false },
-    { id: 'd', x: 14, y: 122, w: 52, h: 10, isH: true },
+function EquationBoard({ currentSticks = [], onSticksChange, isInteractive = true, showSolution = false, solutionSticks = [] }) {
+  const get7Seg = (prefix, offsetX) => [
+    { id: `${prefix}_a`, x: offsetX + 14, y: 6, w: 52, h: 10, isH: true },
+    { id: `${prefix}_f`, x: offsetX + 6, y: 14, w: 10, h: 52, isH: false },
+    { id: `${prefix}_b`, x: offsetX + 64, y: 14, w: 10, h: 52, isH: false },
+    { id: `${prefix}_g`, x: offsetX + 14, y: 64, w: 52, h: 10, isH: true },
+    { id: `${prefix}_e`, x: offsetX + 6, y: 72, w: 10, h: 52, isH: false },
+    { id: `${prefix}_c`, x: offsetX + 64, y: 72, w: 10, h: 52, isH: false },
+    { id: `${prefix}_d`, x: offsetX + 14, y: 122, w: 52, h: 10, isH: true },
   ];
 
+  const segments = [
+    { id: 'sign_minus', x: 0, y: 64, w: 40, h: 10, isH: true },
+    ...get7Seg('d1', 50),
+    { id: 'op_h', x: 140, y: 64, w: 40, h: 10, isH: true },
+    { id: 'op_v', x: 155, y: 49, w: 10, h: 40, isH: false },
+    ...get7Seg('d2', 190),
+    { id: 'eq_t', x: 280, y: 49, w: 40, h: 10, isH: true },
+    { id: 'eq_b', x: 280, y: 79, w: 40, h: 10, isH: true },
+    ...get7Seg('d3', 330),
+  ];
+
+  const sticksToRender = showSolution ? solutionSticks : currentSticks;
+
   return (
-    <svg viewBox="0 0 80 138" className="w-16 sm:w-20 md:w-24 aspect-[80/138] bg-slate-900/90 rounded-xl p-1 border border-slate-800 shadow-inner select-none">
+    <svg viewBox="0 0 420 138" className="w-full max-w-2xl bg-slate-900/90 rounded-xl p-4 border border-slate-800 shadow-inner select-none">
       {segments.map((s) => {
-        const segKey = `d${digitIndex}_${s.id}`;
-        const isActive = activeSegments.includes(segKey);
+        const isActive = sticksToRender.includes(s.id);
 
         return (
           <g
             key={s.id}
-            onClick={() => isInteractive && onToggle && onToggle(segKey)}
+            onClick={() => {
+              if (!isInteractive) return;
+              if (isActive) {
+                onSticksChange(currentSticks.filter(id => id !== s.id));
+              } else {
+                onSticksChange([...currentSticks, s.id]);
+              }
+            }}
             className={isInteractive ? "cursor-pointer hover:opacity-85" : ""}
           >
             <rect
@@ -705,6 +713,7 @@ export default function App() {
     ]);
     setActiveWordIndex(0);
     setBuilderDraftLine(null);
+    setQMatchPreset("digits");
     setQMatchInitial(PUZZLE_1000_INITIAL);
     setQMatchSolution(PUZZLE_7950_SOLUTION);
     setQMatchMaxMoves(3);
@@ -1180,6 +1189,20 @@ export default function App() {
   const currQ = activeQuestions[game.currentIndex] || activeQuestions[0];
   const currentAnswerCount = Object.keys(answers).length;
 
+  // HELPER TO GENERATE TITLE HEADER ON PARTICIPANT SCREEN (UPDATED TO "RIDDLE")
+  const getQuestionTitleLabel = (type) => {
+    switch(type) {
+      case 'matchstick': return 'MATCHSTICK PUZZLE';
+      case 'riddle': return 'RIDDLE';
+      case 'jumble': return 'WORD UNSCRAMBLE';
+      case 'wordsearch': return 'WORD SEARCH';
+      case 'word': return 'GUESS THE WORD';
+      case 'boolean': return 'TRUE OR FALSE';
+      case 'mcq': return 'MULTIPLE CHOICE';
+      default: return 'LIVE QUESTION';
+    }
+  };
+
   if (!role) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6">
@@ -1337,6 +1360,13 @@ export default function App() {
               </div>
             </div>
 
+            {/* PARTICIPANT SCREEN TITLE BADGE */}
+            <div className="flex justify-center mb-4">
+              <span className="px-3 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-extrabold text-[11px] uppercase tracking-widest rounded-full shadow">
+                {getQuestionTitleLabel(currQ.type)}
+              </span>
+            </div>
+
             {/* ENLARGED CENTERED QUESTION */}
             <h3 className="text-2xl md:text-3xl font-extrabold mb-10 leading-relaxed text-center drop-shadow-xl text-white tracking-wide">{currQ.question}</h3>
             
@@ -1366,24 +1396,43 @@ export default function App() {
                 </div>
 
                 <div className="flex justify-center">
-              <MatchstickPuzzle
-                  preset={currQ.preset || 'digits'}
-                  actionType="MOVE"
-                  currentSticks={userSticks}
-                  solutionSticks={currQ.solutionSticks || []}
-                  showSolution={game.status === 'REVEAL'}
-                  isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
-                  onSticksChange={(newSticks) => {
-                    if (newSticks.length < userSticks.length) {
-                      setUserSticks(newSticks);
-                      setStickInventory((prev) => prev + 1);
-                      setMovesCount((prev) => prev + 1);
-                    } else if (stickInventory > 0) {
-                      setUserSticks(newSticks);
-                      setStickInventory((prev) => prev - 1);
-                    }
-                  }}
-                />
+                {currQ.preset === 'equation' ? (
+                  <EquationBoard
+                    currentSticks={userSticks}
+                    solutionSticks={currQ.solutionSticks || []}
+                    showSolution={game.status === 'REVEAL'}
+                    isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
+                    onSticksChange={(newSticks) => {
+                      if (newSticks.length < userSticks.length) {
+                        setUserSticks(newSticks);
+                        setStickInventory((prev) => prev + 1);
+                        setMovesCount((prev) => prev + 1);
+                      } else if (stickInventory > 0) {
+                        setUserSticks(newSticks);
+                        setStickInventory((prev) => prev - 1);
+                      }
+                    }}
+                  />
+                ) : (
+                  <MatchstickPuzzle
+                    preset={currQ.preset || 'digits'}
+                    actionType="MOVE"
+                    currentSticks={userSticks}
+                    solutionSticks={currQ.solutionSticks || []}
+                    showSolution={game.status === 'REVEAL'}
+                    isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
+                    onSticksChange={(newSticks) => {
+                      if (newSticks.length < userSticks.length) {
+                        setUserSticks(newSticks);
+                        setStickInventory((prev) => prev + 1);
+                        setMovesCount((prev) => prev + 1);
+                      } else if (stickInventory > 0) {
+                        setUserSticks(newSticks);
+                        setStickInventory((prev) => prev - 1);
+                      }
+                    }}
+                  />
+                )}
                 </div>
 
                 <p className="text-[11px] text-slate-400 text-center">
@@ -1623,6 +1672,12 @@ export default function App() {
                   <p className="text-2xl font-black text-white">7950</p>
                 </div>
               )}
+              {currQ.type === 'matchstick' && currQ.preset === 'equation' && (
+                <div className="mb-2">
+                  <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Solved Equation:</span>
+                  <p className="text-2xl font-black text-white tracking-widest">-1 + 3 = 2</p>
+                </div>
+              )}
               {currQ.type === 'jumble' && (
                 <div className="mb-2">
                   <span className="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Unscrambled Word:</span>
@@ -1802,29 +1857,30 @@ export default function App() {
                   <div className="flex justify-between items-center">
                     <span className="text-amber-400 font-bold text-xs">Pattern Layout:</span>
                    <select
-  value={qMatchPreset}
-  onChange={(e) => {
-    const selected = e.target.value;
-    setQMatchPreset(selected);
-    const tpl = MATCHSTICK_TEMPLATES[selected];
-    if (tpl) {
-      setQMatchInitial(tpl.initial || []);
-      setQMatchSolution(tpl.solution || []);
-      setQMatchMaxMoves(tpl.moves || 2);
-    } else {
-      setQMatchInitial([]);
-      setQMatchSolution([]);
-      setQMatchMaxMoves(2);
-    }
-  }}
-  className="bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white"
->
+                    value={qMatchPreset}
+                    onChange={(e) => {
+                      const selected = e.target.value;
+                      setQMatchPreset(selected);
+                      const tpl = MATCHSTICK_TEMPLATES[selected];
+                      if (tpl) {
+                        setQMatchInitial(tpl.initial || []);
+                        setQMatchSolution(tpl.solution || []);
+                        setQMatchMaxMoves(tpl.moves || 2);
+                      } else {
+                        setQMatchInitial([]);
+                        setQMatchSolution([]);
+                        setQMatchMaxMoves(2);
+                      }
+                    }}
+                    className="bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white"
+                  >
+                      <option value="equation">Math Equation (1 + 9 = 2)</option>
+                      <option value="digits">4 Digits (Numeric 1000)</option>
                       <option value="glass">Free the Circle (Cocktail Glass)</option>
                       <option value="triangle">Triangles / Fish / Hexagon</option>
                       <option value="grid_2x2">2x2 Square Grid</option>
                       <option value="grid_3x3">3x3 Square Grid (24 sticks)</option>
                       <option value="grid_4x4">4x4 Square Grid (40 sticks)</option>
-                      <option value="digits">4 Digits (Numeric 1000)</option>
                     </select>
                   </div>
 
@@ -1849,13 +1905,21 @@ export default function App() {
                     Click any stick to toggle it on or off for the <b>{matchEditTarget}</b> state:
                   </p>
 
-                  <MatchstickPuzzle
-                    preset={qMatchPreset}
-                    actionType="MOVE"
-                    currentSticks={matchEditTarget === 'initial' ? qMatchInitial : qMatchSolution}
-                    onSticksChange={matchEditTarget === 'initial' ? setQMatchInitial : setQMatchSolution}
-                    isInteractive={true}
-                  />
+                  {qMatchPreset === 'equation' ? (
+                    <EquationBoard
+                      currentSticks={matchEditTarget === 'initial' ? qMatchInitial : qMatchSolution}
+                      onSticksChange={matchEditTarget === 'initial' ? setQMatchInitial : setQMatchSolution}
+                      isInteractive={true}
+                    />
+                  ) : (
+                    <MatchstickPuzzle
+                      preset={qMatchPreset}
+                      actionType="MOVE"
+                      currentSticks={matchEditTarget === 'initial' ? qMatchInitial : qMatchSolution}
+                      onSticksChange={matchEditTarget === 'initial' ? setQMatchInitial : setQMatchSolution}
+                      isInteractive={true}
+                    />
+                  )}
 
                   <div>
                     <label className="block text-slate-400 font-semibold mb-1">Max Matchstick Moves</label>
@@ -2220,7 +2284,7 @@ export default function App() {
 
                       {q.type === 'matchstick' && (
                         <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800 flex items-center justify-between text-xs text-amber-400">
-                          <span>Initial: 4 Digits</span>
+                          <span>Preset: {q.preset}</span>
                           <span>Move Limit: {q.maxMoves || 3} sticks</span>
                         </div>
                       )}
@@ -2399,13 +2463,22 @@ export default function App() {
 
                 {currQ?.type === 'matchstick' && (
                   <div className="my-6 space-y-4">
-                 <MatchstickPuzzle
+                  {currQ.preset === 'equation' ? (
+                    <EquationBoard
+                      currentSticks={currQ?.initialSticks || []}
+                      solutionSticks={currQ?.solutionSticks || []}
+                      showSolution={game.status === 'REVEAL'}
+                      isInteractive={false}
+                    />
+                  ) : (
+                    <MatchstickPuzzle
                       preset={currQ?.preset || 'digits'}
                       currentSticks={currQ?.initialSticks || []}
                       solutionSticks={currQ?.solutionSticks || []}
                       showSolution={game.status === 'REVEAL'}
                       isInteractive={false}
                     />
+                  )}
                     {game.status === 'REVEAL' && currQ.preset === 'digits' && (
                       <p className="text-emerald-400 font-bold tracking-wider text-base mt-2">
                         ✓ Highest Valid Mathematical Number: 7950
