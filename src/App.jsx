@@ -763,6 +763,16 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/questions`), updatedList);
   };
 
+  const handleMoveToPosition = (currentIndex, targetPosNum) => {
+    const targetIndex = targetPosNum - 1;
+    if (targetIndex < 0 || targetIndex >= questions.length || targetIndex === currentIndex) return;
+    const updated = [...questions];
+    const [movedItem] = updated.splice(currentIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+    setQuestions(updated);
+    set(ref(db, `rooms/${roomId}/questions`), updated);
+  };
+
   const handleMoveUp = (index) => {
     if (index === 0) return;
     const updated = [...questions];
@@ -1189,7 +1199,6 @@ export default function App() {
   const currQ = activeQuestions[game.currentIndex] || activeQuestions[0];
   const currentAnswerCount = Object.keys(answers).length;
 
-  // HELPER TO GENERATE TITLE HEADER ON PARTICIPANT SCREEN (UPDATED TO "RIDDLE")
   const getQuestionTitleLabel = (type) => {
     switch(type) {
       case 'matchstick': return 'MATCHSTICK PUZZLE';
@@ -1384,12 +1393,13 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => {
-                      setUserSticks(currQ.initialSticks || PUZZLE_1000_INITIAL);
+                      const baseInitial = currQ.preset === 'equation' ? EQUATION_192_INITIAL : (currQ.initialSticks || PUZZLE_1000_INITIAL);
+                      setUserSticks(baseInitial);
                       setStickInventory(0);
                       setMovesCount(0);
                     }}
-                    disabled={selectedAnswer !== null}
-                    className="flex items-center gap-1 text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded-lg text-[11px]"
+                    disabled={game.timeRemaining <= 0}
+                    className="flex items-center gap-1 text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded-lg text-[11px] disabled:opacity-40"
                   >
                     <RotateCcw className="w-3 h-3" /> Reset
                   </button>
@@ -1401,7 +1411,7 @@ export default function App() {
                     currentSticks={userSticks}
                     solutionSticks={currQ.solutionSticks || []}
                     showSolution={game.status === 'REVEAL'}
-                    isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
+                    isInteractive={selectedAnswer === null && game.status === 'QUESTION' && game.timeRemaining > 0}
                     onSticksChange={(newSticks) => {
                       if (newSticks.length < userSticks.length) {
                         setUserSticks(newSticks);
@@ -1420,7 +1430,7 @@ export default function App() {
                     currentSticks={userSticks}
                     solutionSticks={currQ.solutionSticks || []}
                     showSolution={game.status === 'REVEAL'}
-                    isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
+                    isInteractive={selectedAnswer === null && game.status === 'QUESTION' && game.timeRemaining > 0}
                     onSticksChange={(newSticks) => {
                       if (newSticks.length < userSticks.length) {
                         setUserSticks(newSticks);
@@ -1439,7 +1449,7 @@ export default function App() {
                   Tap active matchsticks to pick them up. Tap dashed slots to place them down.
                 </p>
 
-                {selectedAnswer === null && game.status === 'QUESTION' && (
+                {selectedAnswer === null && game.status === 'QUESTION' && game.timeRemaining > 0 && (
                   <button
                     onClick={submitMatchstickSolution}
                     className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl text-white shadow-lg shadow-emerald-600/30 transition active:scale-[0.98]"
@@ -2248,13 +2258,34 @@ export default function App() {
                     className={`border rounded-2xl p-4 flex gap-3 items-start transition ${isEnabled ? 'bg-slate-900 border-slate-800' : 'bg-slate-950/60 border-slate-850 opacity-60'}`}
                   >
                     <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <button onClick={() => handleMoveUp(idx)} disabled={idx === 0} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20">
+                      <button onClick={() => handleMoveUp(idx)} disabled={idx === 0} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20" title="Move Up">
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
-                      <span className="w-7 h-7 rounded-xl border border-slate-700 bg-slate-800 text-xs font-black flex items-center justify-center text-indigo-400">
-                        {idx + 1}
-                      </span>
-                      <button onClick={() => handleMoveDown(idx)} disabled={idx === questions.length - 1} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20">
+                      <div className="relative group">
+                        <input
+                          type="number"
+                          min="1"
+                          max={questions.length}
+                          defaultValue={idx + 1}
+                          key={`pos_${idx}_${questions.length}`}
+                          onBlur={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (!isNaN(val)) {
+                              handleMoveToPosition(idx, val);
+                            } else {
+                              e.target.value = idx + 1;
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.currentTarget.blur();
+                            }
+                          }}
+                          className="w-9 h-9 rounded-xl border border-slate-700 bg-slate-800 text-xs font-black text-center text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          title="Click or type position number and press Enter to jump"
+                        />
+                      </div>
+                      <button onClick={() => handleMoveDown(idx)} disabled={idx === questions.length - 1} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20" title="Move Down">
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
