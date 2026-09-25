@@ -1186,7 +1186,7 @@ export default function App() {
     e.preventDefault();
     if (!playerName.trim()) return;
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
-    
+
     const newSessionId = Math.random().toString(36).substring(2, 15);
     setLocalSessionId(newSessionId);
 
