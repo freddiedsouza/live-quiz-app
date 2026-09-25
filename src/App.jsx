@@ -424,6 +424,7 @@ export default function App() {
   const [playerName, setPlayerName] = useState("");
   const [teamName, setTeamName] = useState("");
   const [hasJoined, setHasJoined] = useState(false);
+  const [localSessionId, setLocalSessionId] = useState("");
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [typedAnswer, setTypedAnswer] = useState("");
 
@@ -489,6 +490,19 @@ export default function App() {
       unsubWinner();
     };
   }, [roomId]);
+
+  useEffect(() => {
+    if (hasJoined && role === 'participant' && localSessionId) {
+      const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
+      const activeDbSession = participants[participantId]?.sessionId;
+
+      if (activeDbSession && activeDbSession !== localSessionId) {
+        setHasJoined(false);
+        setLocalSessionId("");
+        alert("Session ended: Someone logged into this name from another device.");
+      }
+    }
+  }, [participants, hasJoined, role, localSessionId, playerName]);
 
   useEffect(() => {
     if (!isAdminAuthed || game.status !== 'QUESTION') return;
@@ -763,16 +777,6 @@ export default function App() {
     set(ref(db, `rooms/${roomId}/questions`), updatedList);
   };
 
-  const handleMoveToPosition = (currentIndex, targetPosNum) => {
-    const targetIndex = targetPosNum - 1;
-    if (targetIndex < 0 || targetIndex >= questions.length || targetIndex === currentIndex) return;
-    const updated = [...questions];
-    const [movedItem] = updated.splice(currentIndex, 1);
-    updated.splice(targetIndex, 0, movedItem);
-    setQuestions(updated);
-    set(ref(db, `rooms/${roomId}/questions`), updated);
-  };
-
   const handleMoveUp = (index) => {
     if (index === 0) return;
     const updated = [...questions];
@@ -789,6 +793,15 @@ export default function App() {
     const temp = updated[index + 1];
     updated[index + 1] = updated[index];
     updated[index] = temp;
+    setQuestions(updated);
+    set(ref(db, `rooms/${roomId}/questions`), updated);
+  };
+
+  const handleJumpQuestion = (currentIndex, targetIndex) => {
+    if (currentIndex === targetIndex) return;
+    const updated = [...questions];
+    const [movedItem] = updated.splice(currentIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
     setQuestions(updated);
     set(ref(db, `rooms/${roomId}/questions`), updated);
   };
@@ -1173,10 +1186,14 @@ export default function App() {
     e.preventDefault();
     if (!playerName.trim()) return;
     const participantId = playerName.trim().toLowerCase().replace(/\s+/g, '_');
-    set(ref(db, `rooms/${roomId}/participants/${participantId}`), {
+    
+    const newSessionId = Math.random().toString(36).substring(2, 15);
+    setLocalSessionId(newSessionId);
+
+    update(ref(db, `rooms/${roomId}/participants/${participantId}`), {
       name: playerName.trim(),
       team: game.mode === 'TEAM' ? (teamName.trim() || 'Team Red') : null,
-      score: 0
+      sessionId: newSessionId
     });
     setHasJoined(true);
   };
@@ -1198,19 +1215,6 @@ export default function App() {
 
   const currQ = activeQuestions[game.currentIndex] || activeQuestions[0];
   const currentAnswerCount = Object.keys(answers).length;
-
-  const getQuestionTitleLabel = (type) => {
-    switch(type) {
-      case 'matchstick': return 'MATCHSTICK PUZZLE';
-      case 'riddle': return 'RIDDLE';
-      case 'jumble': return 'WORD UNSCRAMBLE';
-      case 'wordsearch': return 'WORD SEARCH';
-      case 'word': return 'GUESS THE WORD';
-      case 'boolean': return 'TRUE OR FALSE';
-      case 'mcq': return 'MULTIPLE CHOICE';
-      default: return 'LIVE QUESTION';
-    }
-  };
 
   if (!role) {
     return (
@@ -1369,13 +1373,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* PARTICIPANT SCREEN TITLE BADGE */}
-            <div className="flex justify-center mb-4">
-              <span className="px-3 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-extrabold text-[11px] uppercase tracking-widest rounded-full shadow">
-                {getQuestionTitleLabel(currQ.type)}
-              </span>
-            </div>
-
             {/* ENLARGED CENTERED QUESTION */}
             <h3 className="text-2xl md:text-3xl font-extrabold mb-10 leading-relaxed text-center drop-shadow-xl text-white tracking-wide">{currQ.question}</h3>
             
@@ -1393,13 +1390,12 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => {
-                      const baseInitial = currQ.preset === 'equation' ? EQUATION_192_INITIAL : (currQ.initialSticks || PUZZLE_1000_INITIAL);
-                      setUserSticks(baseInitial);
+                      setUserSticks(currQ.initialSticks || PUZZLE_1000_INITIAL);
                       setStickInventory(0);
                       setMovesCount(0);
                     }}
-                    disabled={game.timeRemaining <= 0}
-                    className="flex items-center gap-1 text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded-lg text-[11px] disabled:opacity-40"
+                    disabled={selectedAnswer !== null}
+                    className="flex items-center gap-1 text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded-lg text-[11px]"
                   >
                     <RotateCcw className="w-3 h-3" /> Reset
                   </button>
@@ -1411,7 +1407,7 @@ export default function App() {
                     currentSticks={userSticks}
                     solutionSticks={currQ.solutionSticks || []}
                     showSolution={game.status === 'REVEAL'}
-                    isInteractive={selectedAnswer === null && game.status === 'QUESTION' && game.timeRemaining > 0}
+                    isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
                     onSticksChange={(newSticks) => {
                       if (newSticks.length < userSticks.length) {
                         setUserSticks(newSticks);
@@ -1430,7 +1426,7 @@ export default function App() {
                     currentSticks={userSticks}
                     solutionSticks={currQ.solutionSticks || []}
                     showSolution={game.status === 'REVEAL'}
-                    isInteractive={selectedAnswer === null && game.status === 'QUESTION' && game.timeRemaining > 0}
+                    isInteractive={selectedAnswer === null && game.status === 'QUESTION'}
                     onSticksChange={(newSticks) => {
                       if (newSticks.length < userSticks.length) {
                         setUserSticks(newSticks);
@@ -1449,7 +1445,7 @@ export default function App() {
                   Tap active matchsticks to pick them up. Tap dashed slots to place them down.
                 </p>
 
-                {selectedAnswer === null && game.status === 'QUESTION' && game.timeRemaining > 0 && (
+                {selectedAnswer === null && game.status === 'QUESTION' && (
                   <button
                     onClick={submitMatchstickSolution}
                     className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl text-white shadow-lg shadow-emerald-600/30 transition active:scale-[0.98]"
@@ -2258,34 +2254,20 @@ export default function App() {
                     className={`border rounded-2xl p-4 flex gap-3 items-start transition ${isEnabled ? 'bg-slate-900 border-slate-800' : 'bg-slate-950/60 border-slate-850 opacity-60'}`}
                   >
                     <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <button onClick={() => handleMoveUp(idx)} disabled={idx === 0} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20" title="Move Up">
+                      <button onClick={() => handleMoveUp(idx)} disabled={idx === 0} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20">
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
-                      <div className="relative group">
-                        <input
-                          type="number"
-                          min="1"
-                          max={questions.length}
-                          defaultValue={idx + 1}
-                          key={`pos_${idx}_${questions.length}`}
-                          onBlur={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            if (!isNaN(val)) {
-                              handleMoveToPosition(idx, val);
-                            } else {
-                              e.target.value = idx + 1;
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.currentTarget.blur();
-                            }
-                          }}
-                          className="w-9 h-9 rounded-xl border border-slate-700 bg-slate-800 text-xs font-black text-center text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                          title="Click or type position number and press Enter to jump"
-                        />
-                      </div>
-                      <button onClick={() => handleMoveDown(idx)} disabled={idx === questions.length - 1} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20" title="Move Down">
+                      <select
+                        value={idx}
+                        onChange={(e) => handleJumpQuestion(idx, Number(e.target.value))}
+                        className="w-10 h-8 rounded-xl border border-slate-700 bg-slate-800 text-xs font-black text-center text-indigo-400 focus:outline-none cursor-pointer text-center-last appearance-none"
+                        style={{ textAlignLast: 'center' }}
+                      >
+                        {questions.map((_, i) => (
+                          <option key={i} value={i}>{i + 1}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => handleMoveDown(idx)} disabled={idx === questions.length - 1} className="p-1 text-slate-500 hover:text-indigo-400 disabled:opacity-20">
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
